@@ -6,6 +6,20 @@ volumes:
   pgdata_centinela:
   gov_mysql_data:
 
+# ---------------------------------------------------------------------
+# Secretos: se montan como archivos en /run/secrets dentro del contenedor.
+# NUNCA se escriben en .env ni en docker-compose.yml (ver secrets/README.md
+# y scripts/gen-secrets.sh). Los servicios los leen con la convención
+# oficial *_FILE (postgres/mysql) o con app/config.py::read_secret().
+# ---------------------------------------------------------------------
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+  gov_mysql_root_password:
+    file: ./secrets/gov_mysql_root_password.txt
+  deepseek_api_key:
+    file: ./secrets/deepseek_api_key.txt
+
 services:
   # -----------------------------------------------------------------
   # Base de datos de inteligencia (eventos, reglas, auditoría, ATT&CK)
@@ -16,8 +30,12 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-centinela}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-in-dev}
+      # La contraseña NO viaja en texto plano por variables de entorno ni
+      # queda visible en `docker inspect` del entorno: llega como archivo.
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       POSTGRES_DB: ${POSTGRES_DB:-centinela}
+    secrets:
+      - postgres_password
     volumes:
       - pgdata_centinela:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d:ro
@@ -39,9 +57,20 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-centinela}:${POSTGRES_PASSWORD:-change-me-in-dev}@centinela-db:5432/${POSTGRES_DB:-centinela}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-centinela}@centinela-db:5432/${POSTGRES_DB:-centinela}
+      # app/config.py inyecta la contraseña leyendo este archivo, así que la
+      # credencial no aparece en `docker inspect` ni en `ps`/logs.
+      DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
+      DEEPSEEK_API_KEY_FILE: /run/secrets/deepseek_api_key
+      ML_MODEL_PATH: ${ML_MODEL_PATH:-/app/ml/model/nsl_kdd_rf.joblib}
+      # Lista de CIDR cuyos X-Forwarded-For se aceptan (vacío = no confiar en
+      # ninguna cabecera de proxy: evita suplantación de IP de origen).
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
       TARGET_GOV_PAGO_URL: http://gov-pago:80
       TARGET_TICKETS_URL: http://tickets:4000
+    secrets:
+      - postgres_password
+      - deepseek_api_key
     ports:
       - "${GATEWAY_PORT:-8080}:8080"
       - "${API_PORT:-3000}:3000"
@@ -74,6 +103,14 @@ services:
       - dmz-net
     depends_on:
       - centinela-core
+    healthcheck:
+      # wget de busybox (node:18-alpine): el servidor de Vite solo se declara
+      # sano cuando realmente sirve el index, no solo cuando el proceso vive.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:5173/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
   # -----------------------------------------------------------------
   # Objetivo vulnerable A: gov-pago (PHP + MySQL) — SIN puertos publicados
@@ -83,18 +120,21 @@ services:
     container_name: target_gov_mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${GOV_MYSQL_ROOT_PASSWORD:-change-me-in-dev}
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/gov_mysql_root_password
       MYSQL_DATABASE: ${GOV_MYSQL_DATABASE:-tributos_db}
+    secrets:
+      - gov_mysql_root_password
     volumes:
       - gov_mysql_data:/var/lib/mysql
       - ./targets/php-tributos/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - dmz-net
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"$$(cat /run/secrets/gov_mysql_root_password)\" --silent"]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 12
+      start_period: 30s
 
   gov-pago:
     build: ./targets/php-tributos
@@ -103,12 +143,22 @@ services:
     environment:
       MYSQL_HOST: gov-mysql
       MYSQL_DATABASE: ${GOV_MYSQL_DATABASE:-tributos_db}
-      MYSQL_ROOT_PASSWORD: ${GOV_MYSQL_ROOT_PASSWORD:-change-me-in-dev}
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/gov_mysql_root_password
+    secrets:
+      - gov_mysql_root_password
     networks:
       - dmz-net
     depends_on:
       gov-mysql:
         condition: service_healthy
+    healthcheck:
+      # php:8.1-apache no trae curl/wget; se comprueba con el propio PHP que
+      # Apache acepta conexiones en el puerto 80.
+      test: ["CMD-SHELL", "php -r 'exit(@fsockopen(\"127.0.0.1\", 80) ? 0 : 1);'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
     # Deliberadamente sin "ports:" — solo alcanzable a través del gateway.
 
   # -----------------------------------------------------------------
@@ -120,6 +170,13 @@ services:
     restart: unless-stopped
     networks:
       - dmz-net
+    healthcheck:
+      # Comprueba que el proceso HTTP responde de verdad (status < 500) en 4000.
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:4000/tickets',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
     # Deliberadamente sin "ports:" — solo alcanzable a través del gateway.
 
   # -----------------------------------------------------------------

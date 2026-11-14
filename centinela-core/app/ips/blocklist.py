@@ -23,6 +23,15 @@ class Blocklist:
         self._quarantine_seconds = settings.blocklist_quarantine_seconds
         self._hits: dict[str, deque[float]] = defaultdict(deque)
         self._quarantined_until: dict[str, float] = {}
+        # Último bloqueo observado por IP: la cuarentena no vuelve a evaluar
+        # reglas, así que sin esto el evento de cuarentena perdería la causa
+        # real (SQLi, traversal, etc.) y se etiquetaría como genérico.
+        self._last_block: dict[str, dict] = {}
+
+    def last_block_context(self, ip: str) -> dict:
+        return self._last_block.get(
+            ip, {"category": None, "severity": "alta", "technique_id": None}
+        )
 
     def is_quarantined(self, ip: str) -> bool:
         until = self._quarantined_until.get(ip)
@@ -36,12 +45,24 @@ class Blocklist:
     def quarantined_until(self, ip: str) -> float | None:
         return self._quarantined_until.get(ip)
 
-    def record_block(self, ip: str) -> bool:
+    def record_block(
+        self,
+        ip: str,
+        *,
+        category: str | None = None,
+        severity: str | None = None,
+        technique_id: str | None = None,
+    ) -> bool:
         """Registra una detección bloqueada para `ip`.
 
         Devuelve True si esta detección acaba de disparar la cuarentena.
         """
         now = time.monotonic()
+        self._last_block[ip] = {
+            "category": category,
+            "severity": severity or "alta",
+            "technique_id": technique_id,
+        }
         hits = self._hits[ip]
         hits.append(now)
         cutoff = now - self._window_seconds

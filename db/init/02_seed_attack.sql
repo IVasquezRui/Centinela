@@ -23,8 +23,12 @@ ON CONFLICT (technique_id) DO NOTHING;
 
 -- Copia del catálogo inicial de app/engine/rules.yaml (mantener sincronizado
 -- a mano durante el Sprint 1; automatizar la carga desde YAML es Sprint 2+).
+-- La última fila NO es una regla del motor: es la acción de RESPUESTA que emite
+-- el IPS (app/ips/blocklist.py) cuando una IP supera el umbral de bloqueos. Se
+-- siembra aquí porque event.rule_id tiene FK contra rule(id) y, sin esta fila,
+-- cada evento de cuarentena rompía la transacción y se perdía evidencia.
 INSERT INTO rule (id, category, severity, technique_id, description, pattern) VALUES
-    ('CNT-SQLI-001',      'sqli',       'critica', 'T1190',     'Tautología clásica de SQL injection ('' OR ''1''=''1)', '(?i)(''|%27)\s*(or|and)\s*(''|%27)?\s*1\s*=\s*1'),
+    ('CNT-SQLI-001',      'sqli',       'critica', 'T1190',     'Tautología clásica de SQL injection ('' OR ''1''=''1)', '(?i)(''|%27)\s*(or|and)\s*(''|%27)?\s*1\s*(''|%27)?\s*=\s*(''|%27)?\s*1'),
     ('CNT-SQLI-002',      'sqli',       'critica', 'T1190',     'UNION SELECT típico de extracción de datos vía SQLi', '(?i)union(\s|%20)+select'),
     ('CNT-SQLI-003',      'sqli',       'alta',    'T1190',     'Comentario SQL para truncar la consulta original (-- o #)', '(?i)(--|#)\s*$|/\*.*\*/'),
     ('CNT-SQLI-004',      'sqli',       'alta',    'T1190',     'Funciones de retardo usadas para SQLi a ciegas (SLEEP/BENCHMARK)', '(?i)(sleep|benchmark)\s*\('),
@@ -37,5 +41,6 @@ INSERT INTO rule (id, category, severity, technique_id, description, pattern) VA
     ('CNT-CMDI-002',      'cmdi',       'alta',    'T1059',     'Sustitución de comandos vía backticks o $()', '`[^`]+`|\$\([^)]+\)'),
     ('CNT-SCANNER-001',   'scanner',    'baja',    'T1595',     'User-Agent de herramientas automatizadas de escaneo', '(?i)(sqlmap|nikto|nmap|masscan|acunetix|nessus)'),
     ('CNT-SCANNER-002',   'scanner',    'media',   'T1595.002', 'Sondeo de rutas administrativas o de configuración comunes', '(?i)/(\.git/|\.env|wp-admin|phpmyadmin|admin/config)'),
-    ('CNT-BRUTEFORCE-001','bruteforce', 'media',   'T1110',     'Intento de acceso a endpoint de login con credenciales por defecto', '(?i)(username|usuario)=admin.*(password|clave)=(admin|123456|root)')
+    ('CNT-BRUTEFORCE-001','bruteforce', 'media',   'T1110',     'Intento de acceso a endpoint de login con credenciales por defecto', '(?i)(username|usuario)=admin.*(password|clave)=(admin|123456|root)'),
+    ('CNT-IPS-QUARANTINE', 'ips',       'alta',    'T1110',     'IP en cuarentena por el IPS tras superar el umbral de detecciones (403 inmediato sin reevaluar reglas)', '(?!)')
 ON CONFLICT (id) DO NOTHING;
