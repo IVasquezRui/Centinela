@@ -39,3 +39,6 @@ pgdata/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Artefactos de Windows (NTFS Alternate Data Streams)
+*:Zone.Identifier
