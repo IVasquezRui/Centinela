@@ -123,7 +123,7 @@ def test_path_traversal_is_blocked(
 @pytest.mark.parametrize(
     "query,expected_rule",
     [
-        ("host=127.0.0.1; cat /etc/passwd", "CNT-CMDI-001"),
+        ("host=127.0.0.1; cat /etc/hosts", "CNT-CMDI-001"),
         ("host=127.0.0.1; whoami", "CNT-CMDI-001"),
         ("target=$(whoami)", "CNT-CMDI-002"),
         ("ip=127.0.0.1 | bash", "CNT-CMDI-003"),

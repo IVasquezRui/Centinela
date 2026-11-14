@@ -14,7 +14,7 @@ rules:
     severity: critica
     technique_id: T1190
     description: "Tautología clásica de SQL injection (' OR '1'='1)"
-    pattern: "(?i)('|%27)\\s*(or|and)\\s*('|%27)?\\s*1\\s*=\\s*1"
+    pattern: "(?i)('|%27)?\\s*(or|and)\\s*('|%27)?\\s*(')?1(')?\\s*=\\s*(')?1(')?"
 
   - id: CNT-SQLI-002
     category: sqli
@@ -23,19 +23,19 @@ rules:
     description: "UNION SELECT típico de extracción de datos vía SQLi"
     pattern: "(?i)union(\\s|%20)+select"
 
-  - id: CNT-SQLI-003
-    category: sqli
-    severity: alta
-    technique_id: T1190
-    description: "Comentario SQL para truncar la consulta original (-- o #)"
-    pattern: "(?i)(--|#)\\s*$|/\\*.*\\*/"
-
   - id: CNT-SQLI-004
     category: sqli
     severity: alta
     technique_id: T1190
     description: "Funciones de retardo usadas para SQLi a ciegas (SLEEP/BENCHMARK)"
     pattern: "(?i)(sleep|benchmark)\\s*\\("
+
+  - id: CNT-SQLI-003
+    category: sqli
+    severity: alta
+    technique_id: T1190
+    description: "Comentario SQL para truncar la consulta original (-- o #)"
+    pattern: "(?i)(--|#)\\s*$|/\\*.*\\*/"
 
   - id: CNT-SQLI-005
     category: sqli
@@ -51,6 +51,13 @@ rules:
     description: "Etiqueta <script> inyectada en parámetros o cuerpo"
     pattern: "(?i)<script[^>]*>"
 
+  - id: CNT-XSS-004
+    category: xss
+    severity: alta
+    technique_id: T1059.007
+    description: "Inyección de elementos DOM para XSS (svg, iframe, img, body)"
+    pattern: "(?i)<(iframe|svg|body|object|embed|style|meta)\\b[^>]*>"
+
   - id: CNT-XSS-002
     category: xss
     severity: media
@@ -64,13 +71,6 @@ rules:
     technique_id: T1059.007
     description: "Esquema javascript: usado para ejecutar script desde un atributo"
     pattern: "(?i)javascript\\s*:"
-
-  - id: CNT-XSS-004
-    category: xss
-    severity: alta
-    technique_id: T1059.007
-    description: "Inyección de elementos DOM para XSS (svg, iframe, img, body)"
-    pattern: "(?i)<(iframe|svg|body|object|embed|style|meta)\\b[^>]*>"
 
   - id: CNT-TRAVERSAL-001
     category: traversal
@@ -93,6 +93,13 @@ rules:
     description: "Inclusión de archivos mediante esquemas de wrapper (php://, file://, data://)"
     pattern: "(?i)(php|file|data|zip|phar)://"
 
+  - id: CNT-CMDI-003
+    category: cmdi
+    severity: critica
+    technique_id: T1059
+    description: "Pipes a intérpretes de comandos o redirección de descriptores de red"
+    pattern: "(?i)(\\|\\s*(bash|sh|zsh|dash)|>\\s*/dev/(tcp|udp)|nc\\s+-[el])\\b"
+
   - id: CNT-CMDI-001
     category: cmdi
     severity: critica
@@ -106,13 +113,6 @@ rules:
     technique_id: T1059
     description: "Sustitución de comandos vía backticks o $()"
     pattern: "`[^`]+`|\\$\\([^)]+\\)"
-
-  - id: CNT-CMDI-003
-    category: cmdi
-    severity: critica
-    technique_id: T1059
-    description: "Pipes a intérpretes de comandos o redirección de descriptores de red"
-    pattern: "(?i)(\\|\\s*(bash|sh|zsh|dash)|>\\s*/dev/(tcp|udp)|nc\\s+-[el])\\b"
 
   - id: CNT-SCANNER-001
     category: scanner
