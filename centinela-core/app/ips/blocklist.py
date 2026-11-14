@@ -76,6 +76,17 @@ class Blocklist:
 
     def snapshot(self) -> list[dict]:
         now = time.monotonic()
+        cutoff = now - self._window_seconds
+        # Purga cuarentenas expiradas y detecciones antiguas (memoria acotada):
+        # sin esto, IPs que dejaron de verse mantienen entradas para siempre.
+        for ip in [ip for ip, until in self._quarantined_until.items() if until <= now]:
+            del self._quarantined_until[ip]
+        for ip, hits in list(self._hits.items()):
+            while hits and hits[0] < cutoff:
+                hits.popleft()
+            if not hits:
+                del self._hits[ip]
+                self._last_block.pop(ip, None)
         return [
             {"ip": ip, "quarantined_for_seconds": max(0, int(until - now))}
             for ip, until in self._quarantined_until.items()

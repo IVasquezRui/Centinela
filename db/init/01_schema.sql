@@ -29,13 +29,13 @@ CREATE TABLE IF NOT EXISTS event (
     verdict         VARCHAR(16) NOT NULL CHECK (verdict IN ('block', 'allow')),
     rule_id         VARCHAR(32) REFERENCES rule(id),
     category        VARCHAR(32),
-    severity        VARCHAR(16),
+    severity        VARCHAR(16) CHECK (severity IN ('baja', 'media', 'alta', 'critica') OR severity IS NULL),
     technique_id    VARCHAR(16),
     ml_score        REAL,
     engine_us       INTEGER NOT NULL,
     payload_sample  TEXT,
     ai_summary      TEXT,
-    ai_status       VARCHAR(16) NOT NULL DEFAULT 'pending' CHECK (ai_status IN ('pending', 'done'))
+    ai_status       VARCHAR(16) NOT NULL DEFAULT 'pending' CHECK (ai_status IN ('pending', 'done', 'failed'))
 );
 
 -- Índices compuestos para los filtros del panel SOC (severidad, IP, fecha)
@@ -60,3 +60,12 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 CREATE INDEX IF NOT EXISTS idx_audit_log_ts ON audit_log (ts DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_log_event_id ON audit_log (event_id);
+
+-- Ancla externa de la cadena de auditoría: registra el último eslabón (id y
+-- hash) para detectar borrados del final de la cadena (truncamiento).
+CREATE TABLE IF NOT EXISTS audit_anchor (
+    id          SMALLINT PRIMARY KEY CHECK (id = 1),
+    last_id     BIGINT NOT NULL,
+    head_hash   CHAR(64) NOT NULL,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);

@@ -108,8 +108,14 @@ export default function Soc() {
   };
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold lg:text-4xl">Panel SOC</h1>
+    <div className="space-y-8">
+      <header>
+        <h1 className="text-3xl font-bold tracking-tight text-ink lg:text-4xl">Panel SOC</h1>
+        <p className="mt-1 text-ink-muted">
+          Tráfico del gateway inline en tiempo real: lo que el motor bloquea, lo que permite y
+          por qué.
+        </p>
+      </header>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label="Peticiones totales" value={stats?.total_requests ?? "—"} />
@@ -123,9 +129,9 @@ export default function Soc() {
       </div>
 
       <section>
-        <h2 className="mb-2 text-lg font-semibold">Eventos en vivo</h2>
+        <h2 className="mb-2 text-lg font-semibold text-ink">Eventos en vivo</h2>
         <EventFilters value={filters} onApply={handleApplyFilters} />
-        <p className="my-2 text-xs text-slate-500" role="status">
+        <p className="my-2 text-xs text-ink-faint" role="status">
           {events.length} resultado{events.length === 1 ? "" : "s"}
           {filters.severity || filters.src_ip || filters.since || filters.until
             ? " (filtrado)"
@@ -135,38 +141,41 @@ export default function Soc() {
       </section>
 
       <section>
-        <h2 className="mb-2 text-lg font-semibold">Mapa de calor — categoría × severidad</h2>
+        <h2 className="mb-2 text-lg font-semibold text-ink">Mapa de calor — categoría × severidad</h2>
         <HeatmapCategorySeverity events={heatmapEvents} />
       </section>
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div>
-          <h2 className="mb-2 text-lg font-semibold">IPs en cuarentena</h2>
-          <ul className="space-y-1 rounded-lg border border-slate-800 bg-centinela-panel p-4 text-sm">
+          <h2 className="mb-2 text-lg font-semibold text-ink">IPs en cuarentena</h2>
+          <ul className="space-y-1 rounded-xl border border-border bg-surface p-4 text-sm shadow-card dark:shadow-card-dark">
             {blocklist.length === 0 && (
-              <li className="text-slate-500">Ninguna IP en cuarentena actualmente.</li>
+              <li className="text-ink-faint">Ninguna IP en cuarentena actualmente.</li>
             )}
             {blocklist.map((entry) => (
-              <li key={entry.ip} className="font-mono">
-                {entry.ip} — {entry.quarantined_for_seconds}s restantes
+              <li key={entry.ip} className="flex items-center justify-between font-mono text-ink">
+                <span>{entry.ip}</span>
+                <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs font-sans font-medium text-amber-900 dark:bg-amber-900/60 dark:text-amber-200">
+                  {entry.quarantined_for_seconds}s restantes
+                </span>
               </li>
             ))}
           </ul>
         </div>
 
         <div>
-          <h2 className="mb-2 text-lg font-semibold">Auditoría (cadena de hashes)</h2>
-          <div className="rounded-lg border border-slate-800 bg-centinela-panel p-4 text-sm">
+          <h2 className="mb-2 text-lg font-semibold text-ink">Auditoría (cadena de hashes)</h2>
+          <div className="rounded-xl border border-border bg-surface p-4 text-sm shadow-card dark:shadow-card-dark">
             <button
               onClick={handleVerifyAudit}
-              className="rounded bg-centinela-accent px-4 py-2 font-semibold text-slate-900 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-centinela-accent focus-visible:ring-offset-2 focus-visible:ring-offset-centinela-panel"
+              className="rounded-lg bg-accent px-4 py-2 font-semibold text-accent-fg transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
             >
               Verificar auditoría
             </button>
             {audit && (
               <p
                 role="status"
-                className={`mt-3 ${audit.valid ? "text-centinela-ok" : "text-centinela-danger"}`}
+                className={`mt-3 font-medium ${audit.valid ? "text-ok" : "text-danger"}`}
               >
                 {audit.valid
                   ? `Cadena íntegra (${audit.entries_checked} entradas verificadas).`

@@ -9,26 +9,47 @@ from __future__ import annotations
 
 import datetime as dt
 
-from fastapi import FastAPI, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func, select
 
 from app.api.public import public_router
 from app.api.stream import stream_router
+from app.config import get_settings
 from app.engine.ml import ml_scorer
 from app.ips.blocklist import blocklist
 from app.storage.audit import verify_chain
 from app.storage.db import async_session
 from app.storage.models import Event
 
-api_app = FastAPI(title="CENTINELA API", version="0.1.0")
+_settings = get_settings()
+
+api_app = FastAPI(
+    title="CENTINELA API",
+    version="0.1.0",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+)
 
 api_app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # panel SOC y Observatorio corren en localhost durante el sprint
+    allow_origins=_settings.cors_origin_list,
     allow_methods=["GET"],
     allow_headers=["*"],
 )
+
+
+async def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
+    """Protege las rutas del SOC con X-API-Key cuando está configurada.
+
+    Si API_KEY no está definida (demo local), se permite el acceso sin llave
+    para no romper el panel. En producción debe definirse y el frontend debe
+    enviar VITE_API_KEY. /api/health y /api/public/* quedan abiertas a
+    propósito (healthcheck de Docker y Observatorio ciudadano).
+    """
+    if _settings.api_key and x_api_key != _settings.api_key:
+        raise HTTPException(status_code=401, detail="api_key inválida o ausente")
 
 api_app.include_router(public_router, prefix="/api/public", tags=["observatorio"])
 api_app.include_router(stream_router, prefix="/api", tags=["stream"])
@@ -46,7 +67,7 @@ async def health() -> dict:
     }
 
 
-@api_app.get("/api/stats")
+@api_app.get("/api/stats", dependencies=[Depends(require_api_key)])
 async def stats() -> dict:
     async with async_session() as session:
         total = await session.scalar(select(func.count(Event.id))) or 0
@@ -66,7 +87,7 @@ async def stats() -> dict:
     }
 
 
-@api_app.get("/api/events")
+@api_app.get("/api/events", dependencies=[Depends(require_api_key)])
 async def list_events(
     severity: str | None = Query(default=None),
     src_ip: str | None = Query(default=None),
@@ -90,12 +111,12 @@ async def list_events(
     return [_event_to_dict(row) for row in rows]
 
 
-@api_app.get("/api/blocklist")
+@api_app.get("/api/blocklist", dependencies=[Depends(require_api_key)])
 async def get_blocklist() -> list[dict]:
     return blocklist.snapshot()
 
 
-@api_app.get("/api/audit/verify")
+@api_app.get("/api/audit/verify", dependencies=[Depends(require_api_key)])
 async def audit_verify() -> dict:
     async with async_session() as session:
         return await verify_chain(session)

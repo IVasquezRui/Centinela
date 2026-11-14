@@ -1,6 +1,15 @@
 networks:
-  dmz-net:
+  # Red de borde: gateway + objetivos de laboratorio + frontend + simulador.
+  edge-net:
     driver: bridge
+  # Red de datos: SOLO centinela-core <-> centinela-db (evidencia aislada).
+  data-net:
+    driver: bridge
+    internal: true
+  # Red privada del objetivo A: SOLO gov-pago <-> gov-mysql.
+  targets-db-net:
+    driver: bridge
+    internal: true
 
 volumes:
   pgdata_centinela:
@@ -42,7 +51,7 @@ services:
       - pgdata_centinela:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d:ro
     networks:
-      - dmz-net
+      - data-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-centinela} -d ${POSTGRES_DB:-centinela}"]
       interval: 5s
@@ -56,6 +65,18 @@ services:
     build: ./centinela-core
     container_name: centinela_core
     restart: unless-stopped
+    # Hardening (auditoría Fase 3): proceso no-root, sin capacidades,
+    # sistema de archivos de solo lectura y límites de recursos.
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 512m
+    cpus: 1.0
     env_file:
       - .env
     environment:
@@ -74,18 +95,20 @@ services:
       # Lista de CIDR cuyos X-Forwarded-For se aceptan (vacío = no confiar en
       # ninguna cabecera de proxy: evita suplantación de IP de origen).
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      API_KEY: ${API_KEY:-}
       TARGET_GOV_PAGO_URL: http://gov-pago:80
       TARGET_TICKETS_URL: http://tickets:4000
     secrets:
       - postgres_password
       - deepseek_api_key
     ports:
-      - "${GATEWAY_PORT:-8080}:8080"
-      - "${API_PORT:-3000}:3000"
+      - "127.0.0.1:${GATEWAY_PORT:-8080}:8080"
+      - "127.0.0.1:${API_PORT:-3000}:3000"
     volumes:
       - ./ml/model:/app/ml/model:ro
     networks:
-      - dmz-net
+      - edge-net
+      - data-net
     depends_on:
       centinela-db:
         condition: service_healthy
@@ -100,21 +123,23 @@ services:
   # Panel SOC + Observatorio público
   # -----------------------------------------------------------------
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:${API_PORT:-3000}
+        VITE_API_KEY: ${API_KEY:-}
     container_name: centinela_frontend
     restart: unless-stopped
-    environment:
-      VITE_API_BASE_URL: http://localhost:${API_PORT:-3000}
     ports:
-      - "${FRONTEND_PORT:-5173}:5173"
+      - "127.0.0.1:${FRONTEND_PORT:-5173}:80"
     networks:
-      - dmz-net
+      - edge-net
     depends_on:
       - centinela-core
     healthcheck:
-      # wget de busybox (node:18-alpine): el servidor de Vite solo se declara
-      # sano cuando realmente sirve el index, no solo cuando el proceso vive.
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:5173/ || exit 1"]
+      # nginx (alpine/busybox) sirve los estáticos; se declara sano cuando
+      # responde el index real, no solo cuando el proceso vive.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:80/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -124,7 +149,7 @@ services:
   # Objetivo vulnerable A: gov-pago (PHP + MySQL) — SIN puertos publicados
   # -----------------------------------------------------------------
   gov-mysql:
-    image: mysql:5.7
+    image: mysql:8.0
     container_name: target_gov_mysql
     restart: unless-stopped
     environment:
@@ -141,7 +166,7 @@ services:
       - gov_mysql_data:/var/lib/mysql
       - ./targets/php-tributos/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
-      - dmz-net
+      - targets-db-net
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"$$(cat /run/secrets/gov_mysql_root_password)\" --silent"]
       interval: 10s
@@ -161,7 +186,8 @@ services:
     secrets:
       - gov_app_password
     networks:
-      - dmz-net
+      - edge-net
+      - targets-db-net
     depends_on:
       gov-mysql:
         condition: service_healthy
@@ -189,7 +215,7 @@ services:
     container_name: target_tickets_node
     restart: unless-stopped
     networks:
-      - dmz-net
+      - edge-net
     healthcheck:
       # Comprueba que el proceso HTTP responde de verdad (status < 500) en 4000.
       test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:4000/tickets',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]
@@ -209,6 +235,6 @@ services:
     environment:
       GATEWAY_URL: http://centinela-core:8080
     networks:
-      - dmz-net
+      - edge-net
     depends_on:
       - centinela-core

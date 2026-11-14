@@ -15,6 +15,7 @@ ai_status='pending' para siempre y el panel nunca muestra el análisis.
 """
 import asyncio
 import contextlib
+import logging
 
 import uvicorn
 
@@ -24,8 +25,31 @@ from app.config import get_settings
 from app.gateway import gateway_app
 from app.queue import event_queue
 
+_SAFE_CONTROL = {9, 10, 13}  # tab, LF, CR
+
+
+class _SanitizeLogFilter(logging.Filter):
+    """Elimina caracteres de control de los mensajes de log.
+
+    El gateway loguea el path decodificado; sin este filtro, un path con
+    secuencias ANSI podría inyectar escapes de terminal o forjar líneas.
+    """
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.msg, str):
+            record.msg = "".join(
+                ch if ord(ch) >= 32 or ord(ch) in _SAFE_CONTROL else "?"
+                for ch in record.msg
+            )
+        return True
+
+
+def _install_log_sanitizer() -> None:
+    for name in ("uvicorn", "uvicorn.access", "uvicorn.error", "centinela"):
+        logging.getLogger(name).addFilter(_SanitizeLogFilter())
+
 
 async def main() -> None:
+    _install_log_sanitizer()
     settings = get_settings()
 
     gateway_server = uvicorn.Server(

@@ -42,6 +42,7 @@ GRANT SELECT, INSERT ON event TO centinela_app;
 -- triage sin poder alterar ningún otro campo (motor, regla, severidad, etc.).
 GRANT UPDATE (ai_summary, ai_status) ON event TO centinela_app;
 GRANT SELECT, INSERT ON audit_log TO centinela_app;
+GRANT SELECT, INSERT, UPDATE ON audit_anchor TO centinela_app;
 GRANT SELECT ON rule, attack_technique TO centinela_app;
 
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO centinela_app;
@@ -52,6 +53,7 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO centinela_app;
 -- audit_log es estrictamente inmutable (WORM forense): ni siquiera las dos
 -- columnas de triage son mutables ahí.
 REVOKE UPDATE, DELETE, TRUNCATE ON audit_log FROM centinela_app;
+REVOKE DELETE, TRUNCATE ON audit_anchor FROM centinela_app;
 -- event no puede truncarse ni borrarse; su UPDATE ya quedó acotado arriba a
 -- las dos columnas del triage por el GRANT granular, así que deliberadamente
 -- NO se incluye UPDATE en este REVOKE de tabla completa, para no generar

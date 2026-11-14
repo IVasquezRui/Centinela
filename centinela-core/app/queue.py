@@ -62,6 +62,26 @@ class EventQueue:
     async def stop(self) -> None:
         if self._worker_task:
             self._worker_task.cancel()
+            try:
+                await self._worker_task
+            except asyncio.CancelledError:
+                pass
+            self._worker_task = None
+        # Drena lo que aún quede en cola para no perder evidencia al apagar.
+        await self._drain_remaining()
+
+    async def _drain_remaining(self) -> None:
+        batch: list[PendingEvent] = []
+        while True:
+            try:
+                batch.append(self._queue.get_nowait())
+            except asyncio.QueueEmpty:
+                break
+        if batch:
+            try:
+                await self._flush(batch)
+            except Exception:
+                logger.exception("No se pudo drenar la cola durante el apagado")
 
     def subscribe(self) -> asyncio.Queue[dict]:
         sub: asyncio.Queue[dict] = asyncio.Queue()
@@ -180,7 +200,21 @@ class EventQueue:
                 session,
                 event_id=row.id,
                 action="event_created",
-                payload={"event_id": row.id, "verdict": row.verdict, "rule_id": row.rule_id},
+                payload={
+                    "event_id": row.id,
+                    "ts": row.ts.isoformat(),
+                    "src_ip": row.src_ip,
+                    "method": row.method,
+                    "path": row.path,
+                    "target": row.target,
+                    "verdict": row.verdict,
+                    "rule_id": row.rule_id,
+                    "category": row.category,
+                    "severity": row.severity,
+                    "technique_id": row.technique_id,
+                    "engine_us": row.engine_us,
+                    "payload_sample": row.payload_sample,
+                },
             )
 
         return {
