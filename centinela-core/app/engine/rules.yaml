@@ -37,6 +37,13 @@ rules:
     description: "Funciones de retardo usadas para SQLi a ciegas (SLEEP/BENCHMARK)"
     pattern: "(?i)(sleep|benchmark)\\s*\\("
 
+  - id: CNT-SQLI-005
+    category: sqli
+    severity: alta
+    technique_id: T1190
+    description: "Comandos destructivos o de manipulación DDL/DML en inyección SQL"
+    pattern: "(?i)(;\\s*)?(drop\\s+table|delete\\s+from|insert\\s+into|update\\s+\\w+\\s+set)\\b"
+
   - id: CNT-XSS-001
     category: xss
     severity: alta
@@ -58,6 +65,13 @@ rules:
     description: "Esquema javascript: usado para ejecutar script desde un atributo"
     pattern: "(?i)javascript\\s*:"
 
+  - id: CNT-XSS-004
+    category: xss
+    severity: alta
+    technique_id: T1059.007
+    description: "Inyección de elementos DOM para XSS (svg, iframe, img, body)"
+    pattern: "(?i)<(iframe|svg|body|object|embed|style|meta)\\b[^>]*>"
+
   - id: CNT-TRAVERSAL-001
     category: traversal
     severity: critica
@@ -72,6 +86,13 @@ rules:
     description: "Lectura directa de archivos sensibles del sistema"
     pattern: "(?i)(etc/passwd|boot\\.ini|win\\.ini|proc/self/environ)"
 
+  - id: CNT-TRAVERSAL-003
+    category: traversal
+    severity: alta
+    technique_id: T1083
+    description: "Inclusión de archivos mediante esquemas de wrapper (php://, file://, data://)"
+    pattern: "(?i)(php|file|data|zip|phar)://"
+
   - id: CNT-CMDI-001
     category: cmdi
     severity: critica
@@ -85,6 +106,13 @@ rules:
     technique_id: T1059
     description: "Sustitución de comandos vía backticks o $()"
     pattern: "`[^`]+`|\\$\\([^)]+\\)"
+
+  - id: CNT-CMDI-003
+    category: cmdi
+    severity: critica
+    technique_id: T1059
+    description: "Pipes a intérpretes de comandos o redirección de descriptores de red"
+    pattern: "(?i)(\\|\\s*(bash|sh|zsh|dash)|>\\s*/dev/(tcp|udp)|nc\\s+-[el])\\b"
 
   - id: CNT-SCANNER-001
     category: scanner
@@ -101,9 +129,23 @@ rules:
     description: "Sondeo de rutas administrativas o de configuración comunes"
     pattern: "(?i)/(\\.git/|\\.env|wp-admin|phpmyadmin|admin/config)"
 
+  - id: CNT-SCANNER-003
+    category: scanner
+    severity: media
+    technique_id: T1595.002
+    description: "Sondeo de copias de seguridad, archivos temporales o volcados sensibles"
+    pattern: "(?i)\\.(bak|old|backup|sql|tar\\.gz|zip|swp|temp)(~|\\b)"
+
   - id: CNT-BRUTEFORCE-001
     category: bruteforce
     severity: media
     technique_id: T1110
     description: "Intento de acceso a endpoint de login con credenciales por defecto"
     pattern: "(?i)(username|usuario)=admin.*(password|clave)=(admin|123456|root)"
+
+  - id: CNT-BRUTEFORCE-002
+    category: bruteforce
+    severity: media
+    technique_id: T1110
+    description: "Intento masivo o patrón de diccionario en parámetros de clave"
+    pattern: "(?i)(pass(word)?|pin|secret|token)=('|\"|%27)?(1234|password|qwerty|toor|admin123|guest)\\b"
