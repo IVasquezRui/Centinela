@@ -39,7 +39,9 @@ def _decode_fully(value: str, max_passes: int = 3) -> str:
     """Decodifica URL-encoding de forma repetida hasta que ya no cambie.
 
     Cubre el caso de doble codificación (%2527 -> %27 -> ') sin entrar en
-    un bucle infinito si el payload es adversarial.
+    un bucle infinito si el payload es adversarial. También neutraliza
+    separadores invertidos (\\ -> /) y caracteres nulos (\x00 / %00) que
+    se usan típicamente para evadir WAFs o truncar extensiones de archivo.
     """
     decoded = value
     for _ in range(max_passes):
@@ -47,7 +49,11 @@ def _decode_fully(value: str, max_passes: int = 3) -> str:
         if next_decoded == decoded:
             break
         decoded = next_decoded
-    return decoded
+
+    # Elimina terminadores nulos (\x00) para evitar truncamiento malicioso
+    # y estandariza barras invertidas a barras normales para path traversal.
+    sanitized = decoded.replace("\x00", "").replace("\\", "/")
+    return sanitized
 
 
 def normalize(

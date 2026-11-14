@@ -14,7 +14,12 @@ rules:
     severity: critica
     technique_id: T1190
     description: "Tautología clásica de SQL injection (' OR '1'='1)"
-    pattern: "(?i)('|%27)\\s*(or|and)\\s*('|%27)?\\s*1\\s*('|%27)?\\s*=\\s*('|%27)?\\s*1"
+    # Versión de la rama motor (Iván): generaliza el fix de develop (que ya
+    # cubría '1'='1 con comillas opcionales alrededor de cada "1") para que
+    # la comilla/%27 inicial antes de or/and también sea opcional, y así
+    # capturar además la tautología numérica sin comillas (1 OR 1=1).
+    # Validado contra la suite de 43 tests de la rama motor.
+    pattern: "(?i)('|%27)?\\s*(or|and)\\s*('|%27)?\\s*(')?1(')?\\s*=\\s*(')?1(')?"
 
   - id: CNT-SQLI-002
     category: sqli
@@ -23,13 +28,6 @@ rules:
     description: "UNION SELECT típico de extracción de datos vía SQLi"
     pattern: "(?i)union(\\s|%20)+select"
 
-  - id: CNT-SQLI-003
-    category: sqli
-    severity: alta
-    technique_id: T1190
-    description: "Comentario SQL para truncar la consulta original (-- o #)"
-    pattern: "(?i)(--|#)\\s*$|/\\*.*\\*/"
-
   - id: CNT-SQLI-004
     category: sqli
     severity: alta
@@ -37,12 +35,33 @@ rules:
     description: "Funciones de retardo usadas para SQLi a ciegas (SLEEP/BENCHMARK)"
     pattern: "(?i)(sleep|benchmark)\\s*\\("
 
+  - id: CNT-SQLI-003
+    category: sqli
+    severity: alta
+    technique_id: T1190
+    description: "Comentario SQL para truncar la consulta original (-- o #)"
+    pattern: "(?i)(--|#)\\s*$|/\\*.*\\*/"
+
+  - id: CNT-SQLI-005
+    category: sqli
+    severity: alta
+    technique_id: T1190
+    description: "Comandos destructivos o de manipulación DDL/DML en inyección SQL"
+    pattern: "(?i)(;\\s*)?(drop\\s+table|delete\\s+from|insert\\s+into|update\\s+\\w+\\s+set)\\b"
+
   - id: CNT-XSS-001
     category: xss
     severity: alta
     technique_id: T1059.007
     description: "Etiqueta <script> inyectada en parámetros o cuerpo"
     pattern: "(?i)<script[^>]*>"
+
+  - id: CNT-XSS-004
+    category: xss
+    severity: alta
+    technique_id: T1059.007
+    description: "Inyección de elementos DOM para XSS (svg, iframe, img, body)"
+    pattern: "(?i)<(iframe|svg|body|object|embed|style|meta)\\b[^>]*>"
 
   - id: CNT-XSS-002
     category: xss
@@ -62,6 +81,18 @@ rules:
   # "; cat /etc/passwd" coincide con ambas y la categoría correcta es ejecución
   # de comandos (T1059), no lectura de archivos. Ver
   # tests/test_rules.py::test_command_injection_is_blocked.
+  # CMDI-003 se evalúa ANTES que CMDI-001: ambas reconocen "bash"/"sh" como
+  # binario, pero "| bash" es específicamente un pipe a intérprete (T1059,
+  # caso más preciso) y no debe clasificarse con la regla genérica de
+  # comandos encadenados. Orden heredado de la rama motor (Iván); invertirlo
+  # rompe tests/test_rules.py::test_command_injection_is_blocked.
+  - id: CNT-CMDI-003
+    category: cmdi
+    severity: critica
+    technique_id: T1059
+    description: "Pipes a intérpretes de comandos o redirección de descriptores de red"
+    pattern: "(?i)(\\|\\s*(bash|sh|zsh|dash)|>\\s*/dev/(tcp|udp)|nc\\s+-[el])\\b"
+
   - id: CNT-CMDI-001
     category: cmdi
     severity: critica
@@ -90,6 +121,13 @@ rules:
     description: "Lectura directa de archivos sensibles del sistema"
     pattern: "(?i)(etc/passwd|boot\\.ini|win\\.ini|proc/self/environ)"
 
+  - id: CNT-TRAVERSAL-003
+    category: traversal
+    severity: alta
+    technique_id: T1083
+    description: "Inclusión de archivos mediante esquemas de wrapper (php://, file://, data://)"
+    pattern: "(?i)(php|file|data|zip|phar)://"
+
   - id: CNT-SCANNER-001
     category: scanner
     severity: baja
@@ -105,9 +143,23 @@ rules:
     description: "Sondeo de rutas administrativas o de configuración comunes"
     pattern: "(?i)/(\\.git/|\\.env|wp-admin|phpmyadmin|admin/config)"
 
+  - id: CNT-SCANNER-003
+    category: scanner
+    severity: media
+    technique_id: T1595.002
+    description: "Sondeo de copias de seguridad, archivos temporales o volcados sensibles"
+    pattern: "(?i)\\.(bak|old|backup|sql|tar\\.gz|zip|swp|temp)(~|\\b)"
+
   - id: CNT-BRUTEFORCE-001
     category: bruteforce
     severity: media
     technique_id: T1110
     description: "Intento de acceso a endpoint de login con credenciales por defecto"
     pattern: "(?i)(username|usuario)=admin.*(password|clave)=(admin|123456|root)"
+
+  - id: CNT-BRUTEFORCE-002
+    category: bruteforce
+    severity: media
+    technique_id: T1110
+    description: "Intento masivo o patrón de diccionario en parámetros de clave"
+    pattern: "(?i)(pass(word)?|pin|secret|token)=('|\"|%27)?(1234|password|qwerty|toor|admin123|guest)\\b"
