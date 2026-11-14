@@ -19,7 +19,7 @@ from dataclasses import dataclass
 import httpx
 
 from app.ai.prompts import SYSTEM_PROMPT, build_user_prompt
-from app.ai.sanitizer import sanitize_payload_for_llm
+from app.ai.sanitizer import looks_like_prompt_injection, sanitize_payload_for_llm
 from app.config import Settings
 
 logger = logging.getLogger("centinela.ai")
@@ -61,6 +61,14 @@ def _fallback_template(event: dict) -> TriageResult:
 
 def _parse_llm_json(raw_text: str, event: dict) -> TriageResult:
     data = json.loads(raw_text)
+    # El LLM puede devolver una lista, un string o null: sin esta comprobación
+    # data["resumen"] lanzaría TypeError (no capturado) y el evento quedaría
+    # en 'pending' reintentándose para siempre (livelock).
+    if not isinstance(data, dict):
+        raise ValueError(f"respuesta del LLM no es un objeto JSON: {type(data).__name__}")
+    for key in ("resumen", "severidad_sugerida", "mitigacion_sugerida"):
+        if key not in data:
+            raise ValueError(f"respuesta del LLM sin la clave {key!r}")
     resumen = str(data["resumen"])[:500]
     severidad = str(data["severidad_sugerida"]).lower()
     mitigacion = str(data["mitigacion_sugerida"])[:500]
@@ -91,6 +99,9 @@ class DeepSeekProvider(LLMProvider):
             return _fallback_template(event)
 
         sanitized_payload = sanitize_payload_for_llm(event.get("payload_sample"))
+        if looks_like_prompt_injection(sanitized_payload):
+            logger.warning("Payload con marcadores de prompt injection: se usa la plantilla")
+            return _fallback_template(event)
         user_prompt = build_user_prompt(event, sanitized_payload)
 
         try:

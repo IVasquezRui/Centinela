@@ -48,7 +48,9 @@ def sanitize_payload_for_llm(payload_sample: str | None, max_len: int = 400) -> 
         return "(sin payload capturado)"
     truncated = payload_sample[:max_len]
     masked = mask_pii(truncated)
-    # El LLM nunca debe tratar el payload como instrucciones: se devuelve
-    # tal cual, y es responsabilidad de ai/prompts.py envolverlo entre
-    # delimitadores y dejar explícito que es un dato citado, no una orden.
+    # Neutraliza el cierre del bloque delimitado en prompts.py: si el payload
+    # contiene "</payload_capturado>", el LLM podría "salir" del bloque de datos
+    # y tratar el resto como instrucciones (fence-escape).
+    masked = masked.replace("</payload_capturado>", "[CIERRE_PAYLOAD]")
+    masked = masked.replace("<payload_capturado>", "[APERTURA_PAYLOAD]")
     return masked

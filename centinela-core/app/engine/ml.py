@@ -65,7 +65,6 @@ class MlScorer:
         self._ensure_loaded()
         return {
             "model_loaded": self._model is not None,
-            "model_path": str(self.model_path),
             "model_present": self.model_path.exists(),
             "feature_columns": len(self._feature_columns),
         }
