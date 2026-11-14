@@ -4,7 +4,7 @@
 > **Rol:** Backend (Motor y Gateway) — Iván Vásquez  
 > **Fase:** F1 · Contratos (0:45 – 2:00)  
 > **Fecha y Hora de Cierre:** 2026-11-13T23:44:00-04:00  
-> **Rama Git:** [`Motor`](https://github.com/IVasquezRui/Centinela/tree/Motor)  
+> **Rama Git:** [`motor`](https://github.com/IVasquezRui/Centinela/tree/motor)  
 > **Compuerta de Salida:** **APROBADA (100% completitud técnica y contractual)**
 
 ---
@@ -94,7 +94,7 @@ Centinela/centinela-core/tests/test_rules.py ...................................
 
 ## 4. Control de Versiones y Trazabilidad Git
 
-Se creó y consolidó la rama **`Motor`** con un historial de commits claro y granular:
+Se creó y consolidó la rama **`motor`** con un historial de commits claro y granular:
 
 | Hash | Mensaje de Commit | Cambios Clave |
 |---|---|---|
