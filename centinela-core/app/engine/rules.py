@@ -19,10 +19,17 @@ from app.engine.normalizer import NormalizedRequest
 
 RULES_PATH = Path(__file__).parent / "rules.yaml"
 
-# Tope de tiempo por regla individual, en segundos. Si una regla lo supera
-# se descarta esa regla para esta petición (no se cuelga el gateway) y se
-# sigue evaluando el resto.
-PER_RULE_TIMEOUT_SECONDS = 0.005
+# Tope de tiempo por regla individual, en segundos. Si una regla lo supera,
+# el motor adopta fail-closed: bloquea preventivamente con CNT-ENGINE-BUDGET
+# en vez de descartar la regla en silencio (que permitiría evadirla alargando
+# el input). Así un regex patológico no puede convertirse en DoS del gateway.
+PER_RULE_TIMEOUT_SECONDS = 0.050
+
+# Cabeceras que nunca se incluyen en el texto inspeccionado: portan secretos
+# (tokens, sesiones) y no son vectores de ataque útiles en los objetivos del
+# laboratorio. El resto de cabeceras SÍ se inspecciona (X-*, Referer, UA, etc.)
+# para que un payload inyectado ahí no evada el motor.
+EXCLUDED_HEADERS = {"authorization", "cookie", "proxy-authorization", "set-cookie"}
 
 
 @dataclass(frozen=True)
@@ -75,11 +82,16 @@ class RuleEngine:
     def evaluate(self, request: NormalizedRequest) -> Verdict:
         start = time.perf_counter()
 
-        headers_text = "\n".join(f"{k}: {v}" for k, v in request.headers.items())
+        headers_text = "\n".join(
+            f"{k}: {v}" for k, v in request.headers.items() if k not in EXCLUDED_HEADERS
+        )
+        # Las reglas de "body" también inspeccionan las cabeceras (excluidas
+        # las sensibles) para cerrar la evasión por cabecera (SQLi/XSS/traversal).
+        body_haystack = request.inspectable_text + "\n" + headers_text
 
         for rule in self._rules:
             rule_start = time.perf_counter()
-            haystack = headers_text if rule.applies_to == "headers" else request.inspectable_text
+            haystack = headers_text if rule.applies_to == "headers" else body_haystack
             match = rule.pattern.search(haystack)
             if match:
                 engine_us = int((time.perf_counter() - start) * 1_000_000)
@@ -94,8 +106,19 @@ class RuleEngine:
                     engine_us=engine_us,
                 )
             if (time.perf_counter() - rule_start) > PER_RULE_TIMEOUT_SECONDS:
-                # Regla demasiado costosa sin match: se descarta para esta petición
-                continue
+                # Fail-closed: una regla demasiado costosa sin match no se
+                # descarta en silencio (eso permitiría evadirla alargando el
+                # input); se bloquea preventivamente para proteger el gateway.
+                engine_us = int((time.perf_counter() - start) * 1_000_000)
+                return Verdict(
+                    verdict="block",
+                    rule_id="CNT-ENGINE-BUDGET",
+                    category="ips",
+                    severity="alta",
+                    technique_id="T1498",
+                    payload_sample=haystack[:200],
+                    engine_us=engine_us,
+                )
 
         engine_us = int((time.perf_counter() - start) * 1_000_000)
         return Verdict(

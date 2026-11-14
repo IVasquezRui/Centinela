@@ -8,9 +8,12 @@ import type {
 } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
+const API_KEY = import.meta.env.VITE_API_KEY ?? "";
 
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`);
+  const headers: Record<string, string> = {};
+  if (API_KEY) headers["X-API-Key"] = API_KEY;
+  const response = await fetch(`${API_BASE_URL}${path}`, { headers });
   if (!response.ok) {
     throw new Error(`${path} respondió ${response.status}`);
   }

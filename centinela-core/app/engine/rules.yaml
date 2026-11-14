@@ -19,28 +19,28 @@ rules:
     # la comilla/%27 inicial antes de or/and también sea opcional, y así
     # capturar además la tautología numérica sin comillas (1 OR 1=1).
     # Validado contra la suite de 43 tests de la rama motor.
-    pattern: "(?i)('|%27)?\\s*(or|and)\\s*('|%27)?\\s*(')?1(')?\\s*=\\s*(')?1(')?"
+    pattern: "(?i)('|%27)?\\s*(or|and)\\s+('?[a-z0-9_$]+'?\\s*=\\s*'?[a-z0-9_$]+'?|\\(\\s*select\\b|\\btrue\\b|\\bfalse\\b)"
 
   - id: CNT-SQLI-002
     category: sqli
     severity: critica
     technique_id: T1190
     description: "UNION SELECT típico de extracción de datos vía SQLi"
-    pattern: "(?i)union(\\s|%20)+select"
+    pattern: "(?i)union\\s+((all|distinct)\\s+)?select"
 
   - id: CNT-SQLI-004
     category: sqli
     severity: alta
     technique_id: T1190
     description: "Funciones de retardo usadas para SQLi a ciegas (SLEEP/BENCHMARK)"
-    pattern: "(?i)(sleep|benchmark)\\s*\\("
+    pattern: "(?i)(\\b(sleep|benchmark|pg_sleep)\\b|waitfor\\s+delay)"
 
   - id: CNT-SQLI-003
     category: sqli
     severity: alta
     technique_id: T1190
     description: "Comentario SQL para truncar la consulta original (-- o #)"
-    pattern: "(?i)(--|#)\\s*$|/\\*.*\\*/"
+    pattern: "(?i)(--\\s*$|--\\s+|#\\s*$|/\\*.*?\\*/)"
 
   - id: CNT-SQLI-005
     category: sqli
@@ -98,7 +98,7 @@ rules:
     severity: critica
     technique_id: T1059
     description: "Encadenado de comandos de shell (;, |, &&) junto a binarios típicos"
-    pattern: "(?i)(;|\\||&&)\\s*(cat|ls|whoami|id|curl|wget|nc|bash|sh)\\b"
+    pattern: "(?i)(;|\\||&&)\\s*(cat|ls|whoami|id|curl|wget|nc|bash|sh|echo|printf|python3?|perl|ruby|node|php|touch|rm|cp|mv|grep|sed|awk|env|printenv)\\b"
 
   - id: CNT-CMDI-002
     category: cmdi
@@ -155,7 +155,7 @@ rules:
     severity: media
     technique_id: T1110
     description: "Intento de acceso a endpoint de login con credenciales por defecto"
-    pattern: "(?i)(username|usuario)=admin.*(password|clave)=(admin|123456|root)"
+    pattern: "(?i)(username|usuario)=admin[^=]{0,64}(password|clave)=(admin|123456|root)"
 
   - id: CNT-BRUTEFORCE-002
     category: bruteforce

@@ -67,7 +67,15 @@ async def _process_pending_batch(provider) -> int:
                 "path": row.path,
                 "payload_sample": row.payload_sample,
             }
-            triage = await provider.triage(event_dict)
+            try:
+                triage = await provider.triage(event_dict)
+            except Exception:
+                # Un error inesperado no debe dejar el evento en 'pending'
+                # reintentándose indefinidamente: se marca como fallido.
+                logger.exception("Triage no disponible para el evento %s", row.id)
+                row.ai_summary = "[error] No se pudo generar el triage automático."
+                row.ai_status = "failed"
+                continue
             row.ai_summary = f"[{triage.source}] {triage.resumen} Mitigación: {triage.mitigacion_sugerida}"
             row.ai_status = "done"
 
