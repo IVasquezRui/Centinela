@@ -11,12 +11,38 @@
 
 ---
 
+## Estado general (actualizado 2026-11-14, tarde)
+
+**Ramas:**
+- `main` — solo el esqueleto inicial (`411c3fe`), congelado.
+- `develop` — fuente de verdad actual del equipo. Ya incluye la infraestructura de devops de Karla (PR #1) y las correcciones de privilegios/auditoría de la rama `mli` (PR #2, Luis). Backend compila, **52/52 tests en verde**, `docker compose config` válido, frontend compila y tipa sin errores (`tsc -b` y `vite build` limpios).
+- `motor` (Iván) — **lista para PR a `develop`**: sube el catálogo de reglas de 14 a 20, endurece el normalizador (null bytes, separadores invertidos) y amplía la suite a 43 tests propios. Tenía conflictos reales contra `develop` (no solo de texto) en `rules.yaml` y `db/init/02_seed_attack.sql`; ya se resolvieron, se corrigió un orden interno roto durante la resolución (`CNT-CMDI-003` debe evaluarse antes que `CNT-CMDI-001`) y se verificó con **52/52 tests en verde**. Mergeada y pusheada a `origin/motor` (`184dffd`); falta que alguien del equipo abra/apruebe el PR en GitHub.
+- Equipo: José Estanga (documentación) es el único rol sin commits propios todavía en el repo.
+
+**Lo que ya funciona de punta a punta (en `develop`):** gateway inline con bloqueo determinista, IPS con cuarentena, cola + auditoría con cadena de hashes verificable, triage de IA con DeepSeek real (con *fallback*), 5 indicadores del Observatorio, separación de privilegios de BD (`centinela_app` sin permisos de `UPDATE`/`DELETE`/`TRUNCATE` salvo las dos columnas de triage), secretos fuera de `.env`, los 6 servicios de `docker compose up` quedan `healthy`.
+
+**Lo que falta de verdad (no evidencia, trabajo real):**
+1. Fusionar `motor` → `develop` (PR abierto en GitHub, pendiente de aprobación/merge).
+2. Frontend: filtros de eventos, mapa de calor, verificación visual de SSE en navegador, accesibilidad y pulido para proyector — **ahora a cargo de Rafael** (ver sección 4, roles actualizados más abajo).
+3. ML: F1 por debajo del objetivo del SDD #23 (0,746–0,755 vs. 0,90 requerido); Plan B activado (el motor de reglas decide, el ML es señal complementaria). No bloquea la demo.
+4. Documentación: capturas reales, reporte de métricas visible para el jurado, guion del pitch cronometrado — pendiente de José Estanga.
+5. Fase F6 (demo en vivo) y pitch — no iniciado.
+
+---
+
+## Roles (actualizado 2026-11-14)
+
+> **Aclaración de identidades**, porque el documento usa alias de proyecto: la persona detrás de **"José Oropeza"** (sección 3, backend datos/ML/IA) y de **"Rafael"** (el rol que en `docs/SPRINT-1.md` quedó "sin definir") es la misma persona (`Rafael Oropeza`, usuario de git `rafaopz`). A partir de ahora esa persona **se encarga del Frontend** (antes bajo el nombre de Luis en este documento). Las tareas de integración que estaban bocetadas para el rol "Rafael" (ver la sección 6 original de este documento) las terminó haciendo **Luis** — evidencia: commit `12cea61 "fase 1 trabajo realizado"` en la rama `mli` (autor `Hakaraf`), que separó el usuario de BD `centinela_app` del superusuario en `config.py`/`docker-compose.yml`. La sección 4 de abajo (antes "Luis — Frontend") pasa a estar a cargo de **Rafael**; el checklist de tareas pendientes no cambia, solo el dueño.
+
+---
+
 ## 0. Bloqueos que afectan a todo el equipo (resolver primero)
 
 
 - [x] **El entorno ya se corrió de punta a punta** (verificación del 2026-11-14): `docker compose up -d --build --wait` termina con código 0 y los 6 servicios en `healthy`. Evidencia y pendientes en la sección de Karla.
 - [x] **El dataset NSL-KDD ya está descargado en `ml/data/` y modelo entrenado.** Se descargaron `KDDTrain+.txt` y `KDDTest+.txt` y se ejecutó `ml/train.py`. Plan B activado tras evaluación de métricas.
 - [x] **`DEEPSEEK_API_KEY` configurado y probado contra la API real.** Ya no vive en `.env`: se pega en `secrets/deepseek_api_key.txt` (Docker secret, permisos 600, fuera de git). Triage verificado contra `https://api.deepseek.com` con respuesta `[llm]` en español claro y actualización de estado a `done`.
+- [ ] **Rama `motor` lista pero sin mergear.** Pusheada a `origin/motor` (`184dffd`), sin conflictos contra `develop` (ya resueltos localmente). Falta abrir/aprobar el PR en GitHub — bloquea que el catálogo de 20 reglas y los 43 tests de Iván lleguen a `develop`.
 
 
 ---
@@ -47,7 +73,7 @@
 
 **Ya existe:**
 - [x] `centinela-core/app/engine/normalizer.py` — decodificación de URL repetida (cubre doble codificación), normalización de mayúsculas.
-- [x] `centinela-core/app/engine/rules.yaml` — catálogo inicial de **14 reglas** (no 20 como apuntaba el plan original) cubriendo las 6 categorías del contrato: `sqli` (4), `xss` (3), `traversal` (2), `cmdi` (2), `scanner` (2), `bruteforce` (1).
+- [x] `centinela-core/app/engine/rules.yaml` — catálogo de **14 reglas** en `develop` cubriendo las 6 categorías del contrato: `sqli` (4), `xss` (3), `traversal` (2), `cmdi` (2), `scanner` (2), `bruteforce` (1). **Sube a 20 en la rama `motor`** (lista para PR, ver "Estado general" al inicio del documento) con `sqli` (5), `xss` (4), `traversal` (3), `cmdi` (3), `scanner` (3), `bruteforce` (2).
 - [x] `centinela-core/app/engine/rules.py` — compila las reglas una vez al arrancar, evalúa con tope de tiempo por regla (5 ms), devuelve el `Verdict` con `engine_us` medido.
 - [x] `centinela-core/app/gateway.py` — reverse proxy real con `httpx.AsyncClient`. BLOCK → `403` inmediato sin tocar el objetivo. ALLOW → reenvía por prefijo de ruta (`/gov-pago/...`, `/tickets/...`).
 - [x] `centinela-core/app/ips/blocklist.py` — 3 detecciones en 60 s → cuarentena de 5 minutos, consultado por el gateway antes de evaluar reglas.
@@ -90,7 +116,9 @@
 
 ---
 
-## 4. Luis — Frontend
+## 4. Rafael — Frontend
+
+> Antes a cargo de Luis en este documento; ver nota de "Roles" al inicio. El checklist no cambió, solo el dueño.
 
 **Ya existe:**
 - [x] Proyecto Vite + React + TS + Tailwind funcionando (`frontend/`), con modo oscuro por defecto.
@@ -130,6 +158,9 @@
 
 ---
 
+## 6. Rol de Rafael — resuelto
 
-- Puente entre Iván/José Oropeza para que las reglas (`rules.yaml`) y el seed SQL (`02_seed_attack.sql`) no se desincronicen al afinar durante F3.
-- Ensayo y cronometraje del pitch con José Estanga en F6.
+Confirmado el 2026-11-14 (ver "Roles" al inicio): Rafael pasa a encargarse del **Frontend** (sección 4). El trabajo de puente que se había bocetado aquí para este rol —sincronizar `rules.yaml` con `02_seed_attack.sql` y resolver conflictos entre ramas— lo cubrió **Luis**:
+
+- [x] Puente entre Iván/José Oropeza para que las reglas (`rules.yaml`) y el seed SQL (`02_seed_attack.sql`) no se desincronicen — commit `12cea61` en `mli` (separación `centinela_app`/superusuario) y, el 2026-11-14, la resolución del merge `motor → develop` (catálogo de 20 reglas, orden `cmdi`/`traversal`, fila `CNT-IPS-QUARANTINE`).
+- [ ] Ensayo y cronometraje del pitch con José Estanga en F6 — sigue pendiente, sin dueño fijo todavía.
