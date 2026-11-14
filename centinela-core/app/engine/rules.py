@@ -81,10 +81,6 @@ class RuleEngine:
             rule_start = time.perf_counter()
             haystack = headers_text if rule.applies_to == "headers" else request.inspectable_text
             match = rule.pattern.search(haystack)
-            if (time.perf_counter() - rule_start) > PER_RULE_TIMEOUT_SECONDS:
-                # Regla demasiado costosa para esta petición: se ignora y se
-                # continúa, no se bloquea el pipeline por ella.
-                continue
             if match:
                 engine_us = int((time.perf_counter() - start) * 1_000_000)
                 sample = match.group(0)[:200]
@@ -97,6 +93,9 @@ class RuleEngine:
                     payload_sample=sample,
                     engine_us=engine_us,
                 )
+            if (time.perf_counter() - rule_start) > PER_RULE_TIMEOUT_SECONDS:
+                # Regla demasiado costosa sin match: se descarta para esta petición
+                continue
 
         engine_us = int((time.perf_counter() - start) * 1_000_000)
         return Verdict(
