@@ -23,6 +23,9 @@ interface EventFiltersProps {
   onApply: (value: EventFiltersValue) => void;
 }
 
+const fieldClass =
+  "rounded-lg border border-border bg-surface-2 px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+
 // Filtros del panel SOC: severidad, IP origen y rango de fechas, tal como
 // exige el contrato de /api/events (docs/SPRINT-1.md sección 4). Los campos
 // se editan en un borrador local y solo disparan la consulta al pulsar
@@ -50,11 +53,11 @@ export default function EventFilters({ value, onApply }: EventFiltersProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-wrap items-end gap-4 rounded-lg border border-slate-800 bg-centinela-panel p-4"
+      className="flex flex-wrap items-end gap-4 rounded-xl border border-border bg-surface p-4 shadow-card dark:shadow-card-dark"
       aria-label="Filtros de eventos"
     >
       <div className="flex flex-col gap-1">
-        <label htmlFor={severityId} className="text-xs uppercase tracking-wide text-slate-400">
+        <label htmlFor={severityId} className="text-xs font-medium uppercase tracking-wide text-ink-faint">
           Severidad
         </label>
         <select
@@ -66,7 +69,7 @@ export default function EventFilters({ value, onApply }: EventFiltersProps) {
               severity: event.target.value as Severity | "",
             }))
           }
-          className="rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-100 focus:border-centinela-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-centinela-accent"
+          className={fieldClass}
         >
           <option value="">Todas</option>
           {SEVERITIES.map((severity) => (
@@ -78,7 +81,7 @@ export default function EventFilters({ value, onApply }: EventFiltersProps) {
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor={ipId} className="text-xs uppercase tracking-wide text-slate-400">
+        <label htmlFor={ipId} className="text-xs font-medium uppercase tracking-wide text-ink-faint">
           IP origen
         </label>
         <input
@@ -90,12 +93,12 @@ export default function EventFilters({ value, onApply }: EventFiltersProps) {
           onChange={(event) =>
             setDraft((previous) => ({ ...previous, src_ip: event.target.value }))
           }
-          className="w-40 rounded border border-slate-700 bg-slate-900 px-2 py-1.5 font-mono text-sm text-slate-100 focus:border-centinela-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-centinela-accent"
+          className={`w-40 font-mono ${fieldClass}`}
         />
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor={sinceId} className="text-xs uppercase tracking-wide text-slate-400">
+        <label htmlFor={sinceId} className="text-xs font-medium uppercase tracking-wide text-ink-faint">
           Desde
         </label>
         <input
@@ -105,12 +108,12 @@ export default function EventFilters({ value, onApply }: EventFiltersProps) {
           onChange={(event) =>
             setDraft((previous) => ({ ...previous, since: event.target.value }))
           }
-          className="rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-100 focus:border-centinela-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-centinela-accent"
+          className={fieldClass}
         />
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor={untilId} className="text-xs uppercase tracking-wide text-slate-400">
+        <label htmlFor={untilId} className="text-xs font-medium uppercase tracking-wide text-ink-faint">
           Hasta
         </label>
         <input
@@ -120,14 +123,14 @@ export default function EventFilters({ value, onApply }: EventFiltersProps) {
           onChange={(event) =>
             setDraft((previous) => ({ ...previous, until: event.target.value }))
           }
-          className="rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-100 focus:border-centinela-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-centinela-accent"
+          className={fieldClass}
         />
       </div>
 
       <div className="flex gap-2">
         <button
           type="submit"
-          className="rounded bg-centinela-accent px-4 py-1.5 text-sm font-semibold text-slate-900 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-centinela-accent focus-visible:ring-offset-2 focus-visible:ring-offset-centinela-panel"
+          className="rounded-lg bg-accent px-4 py-1.5 text-sm font-semibold text-accent-fg transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
           Aplicar
         </button>
@@ -135,7 +138,7 @@ export default function EventFilters({ value, onApply }: EventFiltersProps) {
           <button
             type="button"
             onClick={handleClear}
-            className="rounded border border-slate-700 px-4 py-1.5 text-sm text-slate-300 hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-centinela-accent focus-visible:ring-offset-2 focus-visible:ring-offset-centinela-panel"
+            className="rounded-lg border border-border px-4 py-1.5 text-sm text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
             Limpiar
           </button>
