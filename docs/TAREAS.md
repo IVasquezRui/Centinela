@@ -14,7 +14,8 @@
 ## Estado general (actualizado 2026-11-14, noche)
 
 **Ramas:**
-- `main` y `develop` están **al mismo commit**: el equipo ya mergeó el PR de Karla (PR #1), el de `mli`/Luis (PR #2 y #3) y el de `motor`/Iván (PR #4 y #5) directo contra `main`. Catálogo de reglas en **20**, normalizador endurecido, **53/53 tests en verde**, `docker compose config` válido, frontend compila y tipa sin errores (`tsc -b` y `vite build` limpios).
+- `main` y `develop` están **al mismo commit** (`363806e`): el equipo ya mergeó el PR de Karla (PR #1), el de `mli`/Luis (PR #2 y #3) y el de `motor`/Iván (PR #4, #5 y #7 — este último con la suite completa de fases 2 a 5 de Iván) directo contra `main`. Catálogo de reglas en **20**, **97/97 tests en verde** (subió de 53 con la suite nueva de Iván: audit, blocklist, compuertas F3/F4/F5, integración, queue, sanitizer).
+- `frontend` (Rafael) — rama propia pusheada a `origin/frontend`, al día con `develop`. Contiene el rediseño visual completo (ver abajo) y un cleanup (`db/init/03_grants.sql` duplicado que reintrodujo el merge de `motor`, eliminado — `03_grants.sh` sigue siendo la versión autoritativa). Pendiente de PR a `develop`.
 - Equipo: José Estanga (documentación) es el único rol sin commits propios todavía en el repo.
 
 **Verificado de punta a punta en una máquina real (2026-11-14, primera vez):** `docker compose up -d --build --wait` deja los 6 servicios `healthy` partiendo de volúmenes nuevos. Se probó con Playwright contra el stack vivo: panel SOC carga con KPIs reales, **SSE actualiza la tabla de eventos sin recargar** al lanzar tráfico nuevo, los filtros (severidad/IP/fechas) funcionan, el mapa de calor categoría×severidad se pinta con datos reales, el botón "Verificar auditoría" confirma la cadena de hashes íntegra, el Observatorio público muestra los 5 indicadores y alertas en lenguaje claro, y la navegación por teclado (Tab) enfoca primero el skip-link. Cero errores de consola.
@@ -132,11 +133,16 @@
 - [x] Accesibilidad mínima: skip-link ("Saltar al contenido principal"), foco visible (`focus-visible:ring`) en nav, botones y campos de filtro, `<caption>` oculto en la tabla de eventos para lectores de pantalla.
 - [x] Pulido visual: tipografía de las tarjetas KPI escala según el largo del valor (grande para números cortos, más chica para frases largas del Observatorio, para no desbordar el layout) — ver `KpiCard.tsx::valueSizeClass`.
 - [x] `VITE_API_BASE_URL` revisado: el frontend corre `vite --host` (modo dev, no build estático), así que la variable se lee en caliente al arrancar el contenedor, no queda "horneada" en el bundle — funciona igual en cualquier laptop que corra su propio `docker compose up` con su propio `.env`.
+- [x] **Rediseño visual completo** (2026-11-14, rama `frontend`): sistema de tokens de color vía variables CSS (`frontend/src/index.css`) en vez de clases `slate-*` fijas, con modo oscuro más profundo como default real (no heredado de `prefers-color-scheme`, que en la mayoría de sistemas es "light" de fábrica) y modo claro completo, cambiables con un clic (`ThemeToggle.tsx`, persistido en `localStorage`, aplicado antes del primer paint para no parpadear).
+- [x] **Header rediseñado** (`App.tsx`): logo propio en SVG, nav con estado activo real (antes los dos links se veían idénticos siempre — era un hueco real, no solo estético), badge "Motor activo" con indicador pulsante.
+- [x] **Observatorio público reconstruido**, no solo recoloreado — era, como se señaló, demasiado simple: cabecera con jerarquía (kicker + título + fecha de actualización), el indicador de incidentes + tendencia como pieza central (antes era una tarjeta más, igual a las otras 4), gráfico de barras de distribución por tipo de amenaza (agrupado en el cliente desde las alertas reales de la API, sin endpoint nuevo ni datos inventados), tarjetas de alerta con icono de severidad.
+- [x] Verificado con Playwright en modo oscuro, claro (incluida persistencia tras recargar) y mobile (390px); detector mecánico de la skill `impeccable` sin hallazgos; `tsc -b` y `vite build` limpios.
 
 **Pendiente (en orden):**
 1. [ ] Accesibilidad con lector de pantalla real (NVDA/VoiceOver) — solo se verificó navegación por teclado (Tab), no una pasada completa con lector de pantalla.
 2. [ ] Pulido fino para proyector en sala real: confirmar tamaños de fuente y contraste con el proyector del venue, no solo en una pantalla de laptop.
 3. [ ] Decidir si el mapa de calor necesita alguna indicación visual de "recibiendo datos en vivo" (ej. parpadeo breve en la celda que acaba de incrementar) para el momento del pitch donde se lanza el simulador.
+4. [ ] Abrir PR de `frontend` → `develop` en GitHub.
 
 ---
 
