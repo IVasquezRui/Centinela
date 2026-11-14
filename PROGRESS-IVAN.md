@@ -117,3 +117,40 @@ Cada una de las siguientes tareas requiere **confirmación explícita del usuari
 - **T-09 [COMPLETADO]:** Creado [`centinela-core/tests/test_queue.py`](file:///c:/Users/USUARIO/Desktop/Hackathon/Centinela/centinela-core/tests/test_queue.py) con 4 pruebas automatizadas (todas superadas al 100% en 1.70s): (1) `test_batch_drain_by_size` — verifica que el drenador vacía la cola al alcanzar `batch_size=2`; (2) `test_batch_drain_by_timer` — verifica que el lote se descarga por `flush_interval=0.1s` sin esperar a llenarse; (3) `test_sse_broadcast_after_commit` — verifica la difusión SSE post-commit sobre `event_bus`; (4) `test_queue_resilience_savepoint` — verifica aislamiento de savepoints anidados ante violación de FK (evento con `rule_id` inexistente se descarta sin abortar el lote completo). Commit `7a0b1fc` sincronizado en `origin/motor`.
 - **T-10 [COMPLETADO]:** Creado y ejecutado [`centinela-core/tests/test_integration.py`](file:///c:/Users/Fonacit/Documents/GitHub/Centinela/centinela-core/tests/test_integration.py) con 6 pruebas automatizadas (100% superadas en 4.09s): verificación de latencia en el camino crítico dentro del SLA contractual (`engine_us < 10 000 µs`), encolado no bloqueante (`elapsed_ms < 5 ms`), asignación de `ai_status='done'` para tráfico legítimo (`allow`) y `ai_status='pending'` para incidentes bloqueados (`block`), propagación fidedigna de métricas y validación de la cadena de hashes (`verify_chain`) en flujos de tráfico mixto.
 - **T-11 [COMPLETADO]:** Creado el directorio [`Fase2-Ivan/`](file:///c:/Users/Fonacit/Documents/GitHub/Centinela/Fase2-Ivan) y generado el informe de cierre formal [`Fase2-Ivan/resultado-fase2.md`](file:///c:/Users/Fonacit/Documents/GitHub/Centinela/Fase2-Ivan/resultado-fase2.md). La suite completa de 69 pruebas del proyecto se ejecutó con 100% de éxito en 4.81s. La compuerta de salida de la Fase 2 queda formalmente **APROBADA**.
+
+---
+
+## 5. Fase 3: Integración (5:00 – 7:30) — Arquitectura y Plan Operativo
+
+### 5.1. Fundamentos Técnicos de la Fase 3
+1. **Contención Dinámica IPS (`ips/blocklist.py`):**
+   - Umbral estricto: 3 detecciones (`verdict = block`) de la misma IP en una ventana móvil de 60 segundos provocan una cuarentena automática de 5 minutos (300 segundos).
+   - Cortocircuito en Gateway: Las IPs en cuarentena reciben respuesta `403 Forbidden` (`{"error": "ip_quarantined", "rule_id": "CNT-IPS-QUARANTINE"}`) de manera instantánea en $< 1\text{ ms}$ sin volver a evaluar las 20 reglas deterministas en CPU.
+   - Preservación de contexto forense: La cuarentena mantiene la metadata del ataque causal (`category`, `severity`, `technique_id`) para no degradar las estadísticas del SOC.
+2. **Afinación del Motor Determinista contra Corpus de 1.000 Peticiones:**
+   - Criterios contractuales inmutables de la compuerta de salida F3 (`SPRINT-1.md`):
+     - **Tasa de detección (Recall):** $\ge 95\%$ sobre tráfico malicioso.
+     - **Tasa de falsos positivos (FP):** $\le 5\%$ sobre tráfico legítimo (objetivo del motor: $0.00\%$).
+     - **Latencia de inspección p95:** $< 10\text{ ms}$ ($< 10.000\ \mu\text{s}$).
+3. **Simulador de Ataques (`attacker-sim/`):**
+   - Soporte para clientes distribuidos (`--rotate-ips`) y evaluación cuantitativa de contención y precisión.
+
+### 5.2. Plan Operativo de Fase 3 (Metodología Human-In-The-Loop)
+
+| ID | Tarea | Descripción Detallada | Estado Pre-Actuación | Estado Post-Actuación |
+|---|---|---|---|---|
+| **T-12** | Suite de Pruebas Unitarias del IPS (`test_blocklist.py`) | Implementar pruebas unitarias exhaustivas para `ips/blocklist.py`: ventana temporal, umbral de 3 bloqueos, expiración a 300s, retención de contexto y aislamiento. | **AUTORIZADO** | **COMPLETADO** (7/7 tests aprobados en 0.56s) |
+| **T-13** | Benchmark y Medición de la Compuerta F3 (1.000 peticiones) | Desarrollar suite de prueba y script de benchmark sobre el corpus de 1.000 peticiones mixtas, midiendo tasa de detección ($\ge 95\%$), tasa de falsos positivos ($\le 5\%$) y latencia p95 ($< 10\text{ ms}$). | **AUTORIZADO** | **COMPLETADO** (3/3 tests aprobados; Recall: 100%, FP: 0.00%, p95: 0.42 ms) |
+| **T-14** | Verificación y Afinación del Motor y Simulador | Validar compatibilidad entre `attacker-sim` y el Gateway, incorporando soporte `--rotate-ips` y verificando cero falsos positivos en el corpus. | **AUTORIZADO** | **COMPLETADO** (Soporte añadido en `sim.py`) |
+| **T-15** | Ejecución Integral de Pruebas del Core | Ejecutar suite unificada de `pytest` (Fase 1 + Fase 2 + Fase 3) asegurando 100% de efectividad sin regresiones. | **AUTORIZADO** | **COMPLETADO** (79/79 tests aprobados en 4.06s) |
+| **T-16** | Cierre Formal de Fase 3 en `Fase3-Ivan/` y Sincronización Git | Generar `Fase3-Ivan/resultado-fase3.md`, actualizar el cuaderno de progreso y consolidar commits en la rama `motor`. | **AUTORIZADO** | **COMPLETADO** (Informe en `Fase3-Ivan/resultado-fase3.md`) |
+
+---
+
+## 5.3. Bitácora de Ejecución de Fase 3 (Post-Actuación)
+
+- **T-12 [COMPLETADO]:** Creado [`centinela-core/tests/test_blocklist.py`](file:///c:/Users/USUARIO/Desktop/Hackathon/Centinela/centinela-core/tests/test_blocklist.py) con 7 pruebas unitarias completas: umbrales (1 y 2 bloqueos no aíslan, el 3ero en $\le 60\text{s}$ dispara cuarentena de 300s), preservación del contexto forense (`category`, `severity`, `technique_id`), poda por ventana deslizante de 60s, expiración exacta de cuarentena a los 300s, aislamiento entre IPs independientes y consistencia del `snapshot()` de cuarentenas activas para el panel SOC. Todas aprobadas al 100% en 0.56s.
+- **T-13 [COMPLETADO]:** Creado [`centinela-core/tests/test_f3_corpus_gate.py`](file:///c:/Users/USUARIO/Desktop/Hackathon/Centinela/centinela-core/tests/test_f3_corpus_gate.py) con 3 pruebas/benchmarks integrados: (1) validación individual de patrones de ataque y benignos del corpus; (2) benchmark de la compuerta de F3 sobre 1.000 peticiones mixtas (30% maliciosas, 70% legítimas) registrando **100.00% de detección** (superando el $\ge 95\%$ exigido), **0.00% falsos positivos** (superando el $\le 5\%$ exigido) y **latencia p95 de 0.42 ms** ($420\ \mu\text{s}$, holgadamente inferior al SLA de 10 ms); (3) contención multi-cliente IPS aislando 5 atacantes y permitiendo el tráfico limpio de 20 usuarios legítimos (200 peticiones, 0 falsos positivos).
+- **T-14 [COMPLETADO]:** Actualizado [`attacker-sim/sim.py`](file:///c:/Users/USUARIO/Desktop/Hackathon/Centinela/attacker-sim/sim.py) para añadir el flag opcional `--rotate-ips` mediante cabeceras `X-Forwarded-For` acopladas a la configuración de `TRUSTED_PROXIES` del Gateway, permitiendo simular tráfico de red distribuido y verificar la contención de múltiples atacantes concurrentes.
+- **T-15 [COMPLETADO]:** Ejecutada la suite completa de pruebas unitarias y de integración de CENTINELA: **79 pruebas ejecutadas y 79 aprobadas exitosamente (100%) en 4.06 segundos**. Se verificó cero regresiones en los módulos de normalización, motor determinista, cola de eventos, auditoría forense, API del SOC y API del Observatorio.
+- **T-16 [COMPLETADO]:** Creado el directorio [`Fase3-Ivan/`](file:///c:/Users/USUARIO/Desktop/Hackathon/Centinela/Fase3-Ivan) y generado el documento formal de entrega [`Fase3-Ivan/resultado-fase3.md`](file:///c:/Users/USUARIO/Desktop/Hackathon/Centinela/Fase3-Ivan/resultado-fase3.md). Todas las compuertas contractuales de salida de la Fase 3 del Sprint 1 han sido formalmente aprobadas.

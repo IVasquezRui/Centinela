@@ -66,7 +66,7 @@ def load_templates() -> tuple[list[Template], list[Template]]:
     return expand(raw["legitimo"], False), expand(raw["malicioso"], True)
 
 
-def run(total: int, malicious_ratio: float, gateway_url: str, delay_ms: int) -> None:
+def run(total: int, malicious_ratio: float, gateway_url: str, delay_ms: int, rotate_ips: bool = False) -> None:
     legit_pool, malicious_pool = load_templates()
 
     n_malicious = int(total * malicious_ratio)
@@ -97,12 +97,15 @@ def run(total: int, malicious_ratio: float, gateway_url: str, delay_ms: int) -> 
             url = f"{gateway_url}/{template.target}{template.path}"
             start = time.perf_counter()
             rule_id: str | None = None
+            headers = dict(template.headers)
+            if rotate_ips:
+                headers["x-forwarded-for"] = f"172.20.0.{random.randint(10, 250)}"
             try:
                 response = client.request(
                     template.method,
                     url,
                     params=_parse_query(template.query),
-                    headers=template.headers,
+                    headers=headers,
                 )
                 blocked = response.status_code == 403
                 if blocked:
@@ -229,6 +232,11 @@ if __name__ == "__main__":
         "--gateway-url", default=os.environ.get("GATEWAY_URL", "http://localhost:8080")
     )
     parser.add_argument("--delay-ms", type=int, default=0, help="Pausa entre peticiones, en ms")
+    parser.add_argument(
+        "--rotate-ips",
+        action="store_true",
+        help="Simula peticiones desde un pool distribuido de IPs usando X-Forwarded-For",
+    )
     args = parser.parse_args()
 
-    run(args.total, args.malicious_ratio, args.gateway_url, args.delay_ms)
+    run(args.total, args.malicious_ratio, args.gateway_url, args.delay_ms, args.rotate_ips)
