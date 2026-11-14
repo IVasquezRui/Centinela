@@ -6,8 +6,24 @@ como *Docker secrets* en `/run/secrets/<nombre>` dentro de cada contenedor.
 | Archivo | Consumidor | Cómo se lee |
 |---|---|---|
 | `postgres_password.txt` | `centinela-db` / `centinela-core` | `POSTGRES_PASSWORD_FILE` y `DATABASE_PASSWORD_FILE` |
-| `gov_mysql_root_password.txt` | `gov-mysql` / `gov-pago` | `MYSQL_ROOT_PASSWORD_FILE` |
+| `gov_mysql_root_password.txt` | `gov-mysql` (superusuario, solo mantenimiento) | `MYSQL_ROOT_PASSWORD_FILE` |
+| `gov_app_password.txt` | `gov-mysql` / `gov-pago` | `MYSQL_PASSWORD_FILE` y `GOV_APP_PASSWORD_FILE` |
 | `deepseek_api_key.txt` | `centinela-core` | `DEEPSEEK_API_KEY_FILE` (vacío = plantilla de respaldo) |
+
+`gov-pago` (la app vulnerable) se conecta como `gov_app`, no como root — por
+buena práctica, no por necesidad técnica. `gov_app` sigue teniendo permisos
+excesivos a propósito (`GRANT ALL` sobre `tributos_db`, cuando solo necesita
+`SELECT`) — esa es la vulnerabilidad real que demuestra el laboratorio.
+
+**Importante sobre `gen-secrets.sh` en Windows:** el `openssl` que encuentra
+Git Bash en PATH suele escribir `\r\n` al final. Un secreto con un `\r`
+colgando rompe la autenticación de cualquier cuenta de MySQL creada a partir
+de él: el bootstrap de la imagen arma la contraseña leyéndolo por shell (que
+solo recorta `\n`), pero PHP usa `trim()` (que sí recorta `\r`) — dos
+lecturas del mismo archivo, dos contraseñas distintas, sin ningún error
+visible más que "Access denied" al autenticar. `gen-secrets.sh` ya limpia
+esto (`tr -d '\r\n'`), pero si algún secreto se generó con una versión
+vieja del script hay que regenerarlo y recrear el volumen de `gov-mysql`.
 
 El rol de mínimos privilegios `centinela_app` **no tiene archivo propio**: su
 password se deriva dentro de `db/init/03_grants.sh` con

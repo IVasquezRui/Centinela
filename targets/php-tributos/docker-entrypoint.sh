@@ -9,9 +9,9 @@
 # y la credencial fuera de la imagen y del repositorio.
 set -eu
 
-if [ -n "${MYSQL_ROOT_PASSWORD_FILE:-}" ] && [ -r "${MYSQL_ROOT_PASSWORD_FILE}" ]; then
-    MYSQL_ROOT_PASSWORD="$(cat "${MYSQL_ROOT_PASSWORD_FILE}")"
-    export MYSQL_ROOT_PASSWORD
+if [ -n "${GOV_APP_PASSWORD_FILE:-}" ] && [ -r "${GOV_APP_PASSWORD_FILE}" ]; then
+    GOV_APP_PASSWORD="$(cat "${GOV_APP_PASSWORD_FILE}")"
+    export GOV_APP_PASSWORD
 fi
 
 exec docker-php-entrypoint "$@"

@@ -17,6 +17,8 @@ secrets:
     file: ./secrets/postgres_password.txt
   gov_mysql_root_password:
     file: ./secrets/gov_mysql_root_password.txt
+  gov_app_password:
+    file: ./secrets/gov_app_password.txt
   deepseek_api_key:
     file: ./secrets/deepseek_api_key.txt
 
@@ -128,8 +130,13 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD_FILE: /run/secrets/gov_mysql_root_password
       MYSQL_DATABASE: ${GOV_MYSQL_DATABASE:-tributos_db}
+      # Cuenta de aplicación (débil/excesiva a propósito, ver db.php) creada
+      # por el mecanismo nativo de la imagen.
+      MYSQL_USER: gov_app
+      MYSQL_PASSWORD_FILE: /run/secrets/gov_app_password
     secrets:
       - gov_mysql_root_password
+      - gov_app_password
     volumes:
       - gov_mysql_data:/var/lib/mysql
       - ./targets/php-tributos/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -149,18 +156,25 @@ services:
     environment:
       MYSQL_HOST: gov-mysql
       MYSQL_DATABASE: ${GOV_MYSQL_DATABASE:-tributos_db}
-      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/gov_mysql_root_password
+      GOV_APP_USER: gov_app
+      GOV_APP_PASSWORD_FILE: /run/secrets/gov_app_password
     secrets:
-      - gov_mysql_root_password
+      - gov_app_password
     networks:
       - dmz-net
     depends_on:
       gov-mysql:
         condition: service_healthy
     healthcheck:
-      # php:8.1-apache no trae curl/wget; se comprueba con el propio PHP que
-      # Apache acepta conexiones en el puerto 80.
-      test: ["CMD-SHELL", "php -r 'exit(@fsockopen(\"127.0.0.1\", 80) ? 0 : 1);'"]
+      # php:8.1-apache no trae curl/wget; se comprueba con el propio PHP.
+      # No basta con que Apache acepte conexiones (fsockopen): eso no detecta
+      # si la app puede hablar con MySQL. Se pide consulta.php de verdad y se
+      # falla si la respuesta trae un error de PHP — así un problema de
+      # conexión a la base de datos deja el servicio unhealthy en vez de
+      # healthy-pero-roto (así se detectó el bug de 'root'@'%' de arriba).
+      test:
+        - "CMD-SHELL"
+        - "php -r '$$r = @file_get_contents(\"http://127.0.0.1/consulta.php?cedula=V11111111\"); exit($$r !== false && strpos($$r, \"Fatal error\") === false ? 0 : 1);'"
       interval: 10s
       timeout: 5s
       retries: 12
