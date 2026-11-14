@@ -19,7 +19,7 @@ class Base(DeclarativeBase):
 class Event(Base):
     __tablename__ = "event"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
     ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
     src_ip: Mapped[str] = mapped_column(String(64))
     method: Mapped[str] = mapped_column(String(16))
@@ -60,7 +60,7 @@ class AttackTechnique(Base):
 class AuditLog(Base):
     __tablename__ = "audit_log"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
     ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
     event_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     action: Mapped[str] = mapped_column(String(32))

@@ -23,6 +23,8 @@ GRANT CONNECT ON DATABASE centinela TO centinela_app;
 GRANT USAGE ON SCHEMA public TO centinela_app;
 
 GRANT SELECT, INSERT ON event TO centinela_app;
+-- Permitir al worker de IA enriquecer el evento sin alterar el resto del registro
+GRANT UPDATE (ai_summary, ai_status) ON event TO centinela_app;
 GRANT SELECT, INSERT ON audit_log TO centinela_app;
 GRANT SELECT ON rule, attack_technique TO centinela_app;
 
@@ -31,6 +33,8 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO centinela_app;
 -- Revocación explícita: aunque GRANT ya es restrictivo por defecto, se deja
 -- constancia explícita de la intención para que quede auditable en el
 -- propio script, no solo implícito por omisión.
-REVOKE UPDATE, DELETE, TRUNCATE ON event FROM centinela_app;
+-- audit_log es estrictamente inmutable (WORM forense):
 REVOKE UPDATE, DELETE, TRUNCATE ON audit_log FROM centinela_app;
+-- event no puede ser truncado ni borrado; solo muta ai_summary/ai_status vía GRANT granular:
+REVOKE DELETE, TRUNCATE ON event FROM centinela_app;
 REVOKE UPDATE, DELETE, TRUNCATE ON rule, attack_technique FROM centinela_app;

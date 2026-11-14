@@ -39,7 +39,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-centinela}:${POSTGRES_PASSWORD:-change-me-in-dev}@centinela-db:5432/${POSTGRES_DB:-centinela}
+      DATABASE_URL: postgresql+asyncpg://${CENTINELA_APP_USER:-centinela_app}:${CENTINELA_APP_PASSWORD:-change-me-in-dev}@centinela-db:5432/${POSTGRES_DB:-centinela}
       TARGET_GOV_PAGO_URL: http://gov-pago:80
       TARGET_TICKETS_URL: http://tickets:4000
     ports:

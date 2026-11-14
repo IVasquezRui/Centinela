@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    database_url: str = "postgresql+asyncpg://centinela:change-me-in-dev@localhost:5432/centinela"
+    database_url: str = "postgresql+asyncpg://centinela_app:change-me-in-dev@localhost:5432/centinela"
 
     target_gov_pago_url: str = "http://gov-pago:80"
     target_tickets_url: str = "http://tickets:4000"
