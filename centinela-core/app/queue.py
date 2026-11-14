@@ -62,6 +62,11 @@ class EventQueue:
     async def stop(self) -> None:
         if self._worker_task:
             self._worker_task.cancel()
+            try:
+                await self._worker_task
+            except asyncio.CancelledError:
+                pass
+            self._worker_task = None
 
     def subscribe(self) -> asyncio.Queue[dict]:
         sub: asyncio.Queue[dict] = asyncio.Queue()

@@ -220,6 +220,13 @@ def test_backslash_traversal_evasion(engine: RuleEngine) -> None:
     assert verdict.category == "traversal"
 
 
+def test_plus_sign_as_space_sqli(engine: RuleEngine) -> None:
+    # '+' traducido a espacio para evitar evasión de WAF en query string
+    verdict = engine.evaluate(_request(query="cedula=1'+UNION+SELECT+user,password+FROM+mysql.user--"))
+    assert verdict.verdict == "block"
+    assert verdict.category == "sqli"
+
+
 # ============================================================================
 # 8. Tráfico Legítimo (Cero Falsos Positivos)
 # ============================================================================
