@@ -154,3 +154,37 @@ Cada una de las siguientes tareas requiere **confirmación explícita del usuari
 - **T-14 [COMPLETADO]:** Actualizado [`attacker-sim/sim.py`](file:///c:/Users/USUARIO/Desktop/Hackathon/Centinela/attacker-sim/sim.py) para añadir el flag opcional `--rotate-ips` mediante cabeceras `X-Forwarded-For` acopladas a la configuración de `TRUSTED_PROXIES` del Gateway, permitiendo simular tráfico de red distribuido y verificar la contención de múltiples atacantes concurrentes.
 - **T-15 [COMPLETADO]:** Ejecutada la suite completa de pruebas unitarias y de integración de CENTINELA: **79 pruebas ejecutadas y 79 aprobadas exitosamente (100%) en 4.06 segundos**. Se verificó cero regresiones en los módulos de normalización, motor determinista, cola de eventos, auditoría forense, API del SOC y API del Observatorio.
 - **T-16 [COMPLETADO]:** Creado el directorio [`Fase3-Ivan/`](file:///c:/Users/USUARIO/Desktop/Hackathon/Centinela/Fase3-Ivan) y generado el documento formal de entrega [`Fase3-Ivan/resultado-fase3.md`](file:///c:/Users/USUARIO/Desktop/Hackathon/Centinela/Fase3-Ivan/resultado-fase3.md). Todas las compuertas contractuales de salida de la Fase 3 del Sprint 1 han sido formalmente aprobadas.
+
+---
+
+## 6. Fase 4: IA + Observatorio Nacional (7:30 – 9:30) — Arquitectura y Plan Operativo
+
+### 6.1. Fundamentos Técnicos de la Fase 4
+1. **La Tesis de la Unificación:**
+   - El Observatorio Nacional de Ciberseguridad no se llena manualmente ni depende de procesos batch desconectados.
+   - Cada ataque bloqueado por el motor determinista alimenta una única cola de datos que deriva hacia el triage de IA y hacia los indicadores macro del Observatorio en tiempo real.
+2. **Copiloto IA No Decisional (DeepSeek / Fallback):**
+   - El LLM **nunca** decide un bloqueo: el motor determinista en `engine/rules.py` es la única autoridad de veredicto.
+   - Si la API de DeepSeek falla, se degrada a una plantilla determinista sin bloquear el pipeline.
+3. **Privacidad y Ética (SDD #40 y Declaración de IA):**
+   - Enmascaramiento previo de PII (cédulas venezolanas, correos, teléfonos y tarjetas de crédito).
+   - Protección contra inyección de prompts mediante delimitación estricta `<payload_capturado>` como dato, no como instrucción.
+   - Anonimización absoluta en `/api/public/*` (cero IPs y cero payloads expuestos).
+
+### 6.2. Plan Operativo de Fase 4 (Metodología Human-In-The-Loop)
+
+| ID | Tarea | Descripción Detallada | Estado Pre-Actuación | Estado Post-Actuación |
+|---|---|---|---|---|
+| **T-17** | Suite Unitaria del Sanitizador de PII (`test_sanitizer.py`) | Implementar pruebas para el saneamiento de cédulas, correos, teléfonos, tarjetas bancarias y detección de marcadores de prompt injection. | **AUTORIZADO** | **COMPLETADO** (7/7 tests aprobados en 0.05s) |
+| **T-18** | Verificación Integral de Triage IA y Observatorio (`test_f4_ai_observatorio_gate.py`) | Validar ciclo de vida: `pending` $\rightarrow$ `_process_pending_batch` $\rightarrow$ `done`, 5 indicadores macro y alertas ciudadanas anonimizadas. | **AUTORIZADO** | **COMPLETADO** (3/3 tests aprobados en 1.21s) |
+| **T-19** | Extensión Interactiva en Panel SOC (`EventsTable.tsx`) | Habilitar filas desplegables para inspeccionar el análisis del copiloto IA, score ML, payload capturado y técnica MITRE. | **AUTORIZADO** | **COMPLETADO** (Desplegable interactivo implementado) |
+| **T-20** | Cierre Formal de Fase 4 en `Fase4-Ivan/` y Sincronización Git | Generar `Fase4-Ivan/resultado-fase4.md`, consolidar commits y sincronizar con la rama remota `origin/motor`. | **AUTORIZADO** | **COMPLETADO** (Informe en `Fase4-Ivan/resultado-fase4.md`) |
+
+---
+
+## 6.3. Bitácora de Ejecución de Fase 4 (Post-Actuación)
+
+- **T-17 [COMPLETADO]:** Creado [`centinela-core/tests/test_sanitizer.py`](file:///c:/Users/USUARIO/Desktop/Hackathon/Centinela/centinela-core/tests/test_sanitizer.py) con 7 pruebas unitarias completas: enmascaramiento de cédulas venezolanas (`V-`, `E-`), correos corporativos y personales, teléfonos móviles venezolanos (`0412`, `0414`), tarjetas de crédito, detección de marcadores de prompt injection y truncamiento seguro de payloads. Todas aprobadas al 100% en 0.05s.
+- **T-18 [COMPLETADO]:** Creado [`centinela-core/tests/test_f4_ai_observatorio_gate.py`](file:///c:/Users/USUARIO/Desktop/Hackathon/Centinela/centinela-core/tests/test_f4_ai_observatorio_gate.py) con 3 pruebas de integración extremo a extremo: validación del worker de IA procesando lotes de eventos bloqueados (`pending` $\rightarrow$ `done`), enriquecimiento táctico con mitigaciones concretas, cálculo preciso de los 5 indicadores de `/api/public/indicadores` y traducción de incidentes a lenguaje ciudadano en `/api/public/alertas` con 100% de anonimización.
+- **T-19 [COMPLETADO]:** Actualizado [`frontend/src/components/EventsTable.tsx`](file:///c:/Users/USUARIO/Desktop/Hackathon/Centinela/frontend/src/components/EventsTable.tsx) implementando filas desplegables e interactivas al hacer clic sobre cualquier evento. Permite inspeccionar en vivo el triage redactado por el Copiloto IA (`ai_summary`), la puntuación de riesgo ML (`ml_score`), la muestra de payload en entorno aislado y los detalles de la regla y técnica MITRE ATT&CK.
+- **T-20 [COMPLETADO]:** Creado el directorio [`Fase4-Ivan/`](file:///c:/Users/USUARIO/Desktop/Hackathon/Centinela/Fase4-Ivan) y generado el documento formal de entrega [`Fase4-Ivan/resultado-fase4.md`](file:///c:/Users/USUARIO/Desktop/Hackathon/Centinela/Fase4-Ivan/resultado-fase4.md). La suite completa de **90 pruebas unitarias y de integración** se superó al 100% en 4.29 segundos. La compuerta de la Fase 4 queda formalmente **APROBADA**.
