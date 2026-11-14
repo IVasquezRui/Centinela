@@ -1,0 +1,13 @@
+{
+  "name": "tickets-vulnerable",
+  "version": "1.0.0",
+  "description": "Objetivo de laboratorio intencionalmente vulnerable para CENTINELA (path traversal + command injection). Datos 100% sintéticos.",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

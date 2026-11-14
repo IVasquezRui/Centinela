@@ -1,0 +1,5 @@
+Recibo sintético de laboratorio — Plataforma de Pago de Tributos
+Contribuyente: Maria Perez (dato ficticio)
+Cédula: V11111111 (dato ficticio)
+Monto pagado: 150.50
+Periodo: 2026-Q1

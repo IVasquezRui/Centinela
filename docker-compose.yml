@@ -1,0 +1,137 @@
+networks:
+  dmz-net:
+    driver: bridge
+
+volumes:
+  pgdata_centinela:
+  gov_mysql_data:
+
+services:
+  # -----------------------------------------------------------------
+  # Base de datos de inteligencia (eventos, reglas, auditoría, ATT&CK)
+  # -----------------------------------------------------------------
+  centinela-db:
+    image: postgres:16-alpine
+    container_name: centinela_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-centinela}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-in-dev}
+      POSTGRES_DB: ${POSTGRES_DB:-centinela}
+    volumes:
+      - pgdata_centinela:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - dmz-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-centinela} -d ${POSTGRES_DB:-centinela}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # -----------------------------------------------------------------
+  # CENTINELA core: gateway inline (8080) + API SOC/Observatorio (3000)
+  # -----------------------------------------------------------------
+  centinela-core:
+    build: ./centinela-core
+    container_name: centinela_core
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-centinela}:${POSTGRES_PASSWORD:-change-me-in-dev}@centinela-db:5432/${POSTGRES_DB:-centinela}
+      TARGET_GOV_PAGO_URL: http://gov-pago:80
+      TARGET_TICKETS_URL: http://tickets:4000
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+      - "${API_PORT:-3000}:3000"
+    volumes:
+      - ./ml/model:/app/ml/model:ro
+    networks:
+      - dmz-net
+    depends_on:
+      centinela-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # -----------------------------------------------------------------
+  # Panel SOC + Observatorio público
+  # -----------------------------------------------------------------
+  frontend:
+    build: ./frontend
+    container_name: centinela_frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: http://localhost:${API_PORT:-3000}
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    networks:
+      - dmz-net
+    depends_on:
+      - centinela-core
+
+  # -----------------------------------------------------------------
+  # Objetivo vulnerable A: gov-pago (PHP + MySQL) — SIN puertos publicados
+  # -----------------------------------------------------------------
+  gov-mysql:
+    image: mysql:5.7
+    container_name: target_gov_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${GOV_MYSQL_ROOT_PASSWORD:-change-me-in-dev}
+      MYSQL_DATABASE: ${GOV_MYSQL_DATABASE:-tributos_db}
+    volumes:
+      - gov_mysql_data:/var/lib/mysql
+      - ./targets/php-tributos/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - dmz-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  gov-pago:
+    build: ./targets/php-tributos
+    container_name: target_gov_pago
+    restart: unless-stopped
+    environment:
+      MYSQL_HOST: gov-mysql
+      MYSQL_DATABASE: ${GOV_MYSQL_DATABASE:-tributos_db}
+      MYSQL_ROOT_PASSWORD: ${GOV_MYSQL_ROOT_PASSWORD:-change-me-in-dev}
+    networks:
+      - dmz-net
+    depends_on:
+      gov-mysql:
+        condition: service_healthy
+    # Deliberadamente sin "ports:" — solo alcanzable a través del gateway.
+
+  # -----------------------------------------------------------------
+  # Objetivo vulnerable B: tickets (Node.js) — SIN puertos publicados
+  # -----------------------------------------------------------------
+  tickets:
+    build: ./targets/node-tickets
+    container_name: target_tickets_node
+    restart: unless-stopped
+    networks:
+      - dmz-net
+    # Deliberadamente sin "ports:" — solo alcanzable a través del gateway.
+
+  # -----------------------------------------------------------------
+  # Simulador de tráfico (legítimo + malicioso) — solo bajo demanda
+  # -----------------------------------------------------------------
+  attacker-sim:
+    build: ./attacker-sim
+    container_name: centinela_attacker_sim
+    profiles: ["demo"]
+    environment:
+      GATEWAY_URL: http://centinela-core:8080
+    networks:
+      - dmz-net
+    depends_on:
+      - centinela-core

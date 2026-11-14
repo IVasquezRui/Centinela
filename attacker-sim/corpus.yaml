@@ -1,0 +1,104 @@
+# Corpus de tráfico mixto para la demo (SPRINT-1, fase F3: 1.000 peticiones,
+# detección >=95%, FP <=5%, p95 <10ms). Cada entrada es una plantilla de
+# petición; `weight` controla la proporción relativa dentro de su categoría.
+
+legitimo:
+  - method: GET
+    target: gov-pago
+    path: /consulta.php
+    query: "cedula=V11111111"
+    weight: 3
+  - method: GET
+    target: gov-pago
+    path: /consulta.php
+    query: "cedula=V22222222"
+    weight: 3
+  - method: GET
+    target: gov-pago
+    path: /descargar.php
+    query: "archivo=recibo_0001.txt"
+    weight: 2
+  - method: GET
+    target: tickets
+    path: /tickets
+    query: ""
+    weight: 3
+  - method: GET
+    target: tickets
+    path: /ticket/1
+    query: ""
+    weight: 2
+  - method: GET
+    target: tickets
+    path: /comprobante
+    query: "archivo=comprobante_0001.txt"
+    weight: 2
+  - method: GET
+    target: tickets
+    path: /validar
+    query: "codigo=ABC123"
+    weight: 2
+
+malicioso:
+  - method: GET
+    target: gov-pago
+    path: /consulta.php
+    query: "cedula=1' OR '1'='1"
+    category: sqli
+    weight: 3
+  - method: GET
+    target: gov-pago
+    path: /consulta.php
+    query: "cedula=1' UNION SELECT user,password,3,4 FROM mysql.user-- -"
+    category: sqli
+    weight: 2
+  - method: GET
+    target: gov-pago
+    path: /consulta.php
+    query: "cedula=1' AND SLEEP(5)-- -"
+    category: sqli
+    weight: 1
+  - method: GET
+    target: gov-pago
+    path: /descargar.php
+    query: "archivo=../../../../etc/passwd"
+    category: traversal
+    weight: 3
+  - method: GET
+    target: tickets
+    path: /comprobante
+    query: "archivo=../../../../etc/passwd"
+    category: traversal
+    weight: 2
+  - method: GET
+    target: tickets
+    path: /validar
+    query: "codigo=1; cat /etc/passwd"
+    category: cmdi
+    weight: 2
+  - method: GET
+    target: tickets
+    path: /validar
+    query: "codigo=$(whoami)"
+    category: cmdi
+    weight: 1
+  - method: GET
+    target: tickets
+    path: /tickets
+    query: "comentario=<script>alert(1)</script>"
+    category: xss
+    weight: 2
+  - method: GET
+    target: gov-pago
+    path: /.env
+    query: ""
+    category: scanner
+    headers:
+      User-Agent: "sqlmap/1.7"
+    weight: 1
+  - method: GET
+    target: gov-pago
+    path: /login.php
+    query: "username=admin&password=admin"
+    category: bruteforce
+    weight: 1

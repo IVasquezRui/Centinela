@@ -1,0 +1,5 @@
+Comprobante sintético de laboratorio — Plataforma de Compra de Tickets
+Evento: Concierto Sinfónico Ficticio (dato ficticio)
+Comprador: Pedro Ramirez (dato ficticio)
+Monto: 25.00
+Estado: pagado

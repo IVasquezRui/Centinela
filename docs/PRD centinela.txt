@@ -1,0 +1,138 @@
+PRD: Proyecto CENTINELA (MVP)
+Sistema Inteligente de Detección, Triage y Auditoría de Intrusiones para Servidores Críticos
+1. Resumen Ejecutivo (Elevator Pitch)
+CENTINELA es una plataforma ligera de monitoreo de seguridad y respuesta a incidentes en tiempo real que combina filtrado determinista ultra-rápido en el borde y análisis inteligente con IA para detectar, clasificar y mitigar ataques contra infraestructura gubernamental o empresarial, generando registros auditables inmutables.
+2. El Problema
+Las instituciones públicas y medianas empresas sufren constante asedio cibernético (intentos de inyección SQL, ataques de fuerza bruta, escaneos de puertos y exfiltración). Sin embargo:
+Los logs tradicionales son abrumadores: Los administradores se ahogan en millones de líneas sin procesar (syslog, trazas de red, EVE JSON).
+La reacción es lenta: La auditoría forense suele ocurrir después de que el servidor ha sido vulnerado.
+Las soluciones comerciales son complejas y costosas: Exigen costosos despliegues de infraestructura que no se pueden improvisar en pocas horas.
+3. Propuesta de Valor del MVP (Alcance Acotado)
+Para un hackathon, menos es más. En lugar de intentar construir un mastodonte de seguridad, el MVP se concentra en demostrar tres superpoderes ejecutables:
+Ingestión Híbrida y Detección en <10 ms: Recibir telemetría simulada de red o peticiones web y descartar el ruido legítimo instantáneamente mediante un motor de firmas deterministas.
+Triage Asistido por IA (con protección contra Inyección de Prompts): Analizar los eventos anómalos utilizando modelos perimetrales eficientes para clasificar la severidad y redactar una recomendación táctica.
+Panel SOC y Trazabilidad Auditor: Un dashboard en tiempo real que muestra la salud del sistema, alertas activas, mapa de calor de amenazas y un libro de registros (Audit Trail) exportable.
+4. Características Principales (Core Features del MVP)
+Módulo Funcionalidad en el MVP Valor para el Jurado
+1. Sensor & Gateway de Ingestión Colector ligero que agrupa telemetría simulada (HTTP/EVE JSON) y la envía de forma segura (firmada con HMAC) al borde. Demuestra capacidad de integrarse con servidores reales sin romper la red.
+2. Motor de Filtrado & IPS Motor determinista basado en expresiones regulares precompiladas para detectar SQLi, XSS y Path Traversal en menos de 10 ms de CPU. Velocidad y eficiencia extrema sin colapsar cuotas gratuitas.
+3. Copiloto Analista SOC (IA) Enriquecimiento de alertas con LLMs en el borde, aplicando saneamiento de PII y delimitadores estrictos contra ataques de evasión de prompts. Innovación aplicada y uso inteligente de Inteligencia Artificial defensiva (Blue Team).
+4. Consola & Audit Trail Interfaz visual estilo SOC (Security Operations Center) con estadísticas de cuotas, listado de bloqueos activos y bitácora forense. Impacto visual inmediato y experiencia de usuario profesional durante la demo.
+5. Arquitectura Técnica Sugerida (Stack Optimizado para Hackathon)
+Capa Periférica / Compute: Cloudflare Workers (TypeScript/JavaScript) para la lógica de ingestión, validación HMAC y ejecución de reglas.
+Persistencia Indexada: Cloudflare D1 (SQLite serverless) con índices compuestos optimizados para evitar escaneos completos y ahorrar lecturas diarias.
+Caché y Listas de Bloqueo: Cloudflare KV para almacenar listas de bloqueo consolidadas (manifests) con actualización por lotes.
+Inteligencia Artificial: Cloudflare Workers AI (modelos eficientes y rápidos de bajo consumo de Neurons, como variantes optimizadas de código abierto).
+Frontend: Single Page Application (SPA) ultrarrápida conectada mediante WebSockets o consultas eficientes al API Gateway del borde.
+6. Métricas de Éxito y Plan de Demostración (Para Ganar al Jurado)
+Durante la presentación final de 3 minutos, el equipo demostrará el flujo en vivo ejecutando los siguientes pasos:
+Lanzamiento de Tráfico Mixto: El simulador inyecta un lote combinado de peticiones legítimas y ataques maliciosos (ej. inyecciones SQL simuladas).
+Acción del Sentinel (IPS): Se observa en el Dashboard cómo el sistema filtra el ruido, bloquea las IPs hostiles de forma automatizada y registra el incidente en la base de datos indexada en milisegundos.
+Explicación del Copiloto: Se muestra cómo la IA categoriza el ataque, redacta el resumen del incidente y protege los datos sensibles (PII).
+Resilencia: Mostrar métricas claras de consumo de recursos y baja latencia, evidenciando una arquitectura robusta, económica y lista para producción.
+Se ha reestructurado el Punto 5 del PRD para transformarlo en un robusto entorno de demostración local basado en Docker Compose.
+Esta arquitectura multi-contenedor simula un escenario de ciberseguridad realista: un servidor central de monitoreo SOC (Centinela) observando y protegiendo dos plataformas gubernamentales/empresariales intencionalmente vulnerables (una en PHP y otra en Node.js con bases de datos expuestas o vulnerables) para probar la detección de ataques y explotación en tiempo real durante el hackathon.
+5. Arquitectura de Despliegue Local (Entorno Docker Multi-Contenedor)
+Para el despliegue local y la demostración en vivo del hackathon, se utiliza una arquitectura aislada en Docker compuesta por 3 contenedores interconectados mediante una red Docker dedicada (centinela-net). Esto permite simular ataques de manera controlada y observar la respuesta del motor de seguridad.
+       +---------------------------------------------+
+       |         CONTENEDOR 1: CENTINELA (SOC)       |
+       |  - Frontend: React (Dashboard en tiempo real) |
+       |  - Backend: API / Motor de Filtrado         |
+       |  - DB: PostgreSQL (Métricas, Logs, CVEs,    |
+       |                   Mitre ATT&CK)             |
+       +---------------------------------------------+
+              ^                               ^
+              | (Monitoreo / Telemetría)      | (Logs / Alertas)
+              v                               v
++-------------------------------+   +-------------------------------+
+|    CONTENEDOR 2: GOB-PAGO     |   |   CONTENEDOR 3: TICKETS-WEB   |
+|  - SO: Linux (Vulnerable)     |   |  - SO: Linux (Vulnerable)     |
+|  - Stack: PHP (Con exploits)  |   |  - Stack: Node.js (Vulnerable)|
+|  - DB: MySQL (Con debilidades)|   |  - DB: PostgreSQL (Exploits)  |
++-------------------------------+   +-------------------------------+
+Detalle de los Contenedores del MVP
+Contenedor 1: Plataforma Centinela (SOC & Core de Inteligencia)
+El cerebro defensivo y panel de control central.
+Sistema Operativo: Linux (Imagen base ligera Alpine o Debian Slim).
+Frontend: React (Vite + Tailwind CSS), que renderiza el dashboard interactivo en tiempo real con tarjetas de salud, listado de bloqueos, mapa de calor de amenazas y el terminal de auditoría forense.
+Backend: API REST en Node.js/Python encargada de recibir la telemetría, ejecutar el motor de análisis y gestionar el almacenamiento.
+Base de Datos Principal (PostgreSQL): Almacena las métricas operativas del sistema, los registros de logs auditables, un repositorio local optimizado con los Datos de CVEs actualizados y la matriz táctica de Mitre ATT&CK para la correlación inteligente de amenazas.
+Contenedor 2: Plataforma de Pago de Aranceles y Tributarios (Objetivo Vulnerable A)
+Simula un sistema web gubernamental heredado y propenso a fallas críticas para demostrar la capacidad de detección y bloqueo del IDS/IPS.
+Sistema Operativo: Linux con servicios desactualizados o configuraciones deliberadamente inseguras.
+Stack de Aplicación: PHP (versión antigua con vulnerabilidades comunes como LFI, Remote Code Execution o validaciones débiles en formularios de pagos).
+Base de Datos (MySQL): Configurada con credenciales débiles por defecto (root sin contraseña o permisos excesivos) y posible exposición a Inyección SQL clásica (SQLi).
+Contenedor 3: Plataforma de Compra de Tickets (Objetivo Vulnerable B)
+Simula una aplicación moderna pero insegura basada en microservicios JavaScript.
+Sistema Operativo: Linux con binarios o permisos mal configurados.
+Stack de Aplicación: Node.js (con dependencias NPM desactualizadas que contienen vulnerabilidades conocidas de ejecución de código o desbordamiento).
+Base de Datos (PostgreSQL): Instancia con brechas de control de acceso, permitiendo probar ataques de recorrido de rutas (Path Traversal), elevación de privilegios o consultas manipuladas desde la API.
+Archivo de Orquestación (docker-compose.yml) de Referencia
+version: '3.8'
+networks:
+  centinela-net:
+    driver: bridge
+services:
+  # CONTENEDOR 1: Plataforma Centinela (SOC + DB de Inteligencia)
+centinela-core:
+    image: centinela/soc-backend:latest
+    container_name: centinela_core_soc
+    restart: always
+    ports:
+      - "3000:3000" # Backend API
+      - "5173:5173" # Frontend React
+    environment:
+      - DB_HOST=centinela-db
+      - DB_USER=postgres
+      - DB_PASS=secretcentinela
+      - DB_NAME=centinela_intel
+    networks:
+      - centinela-net
+    depends_on:
+      - centinela-db
+  centinela-db:
+    image: postgres:15-alpine
+    container_name: centinela_postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=secretcentinela
+      - POSTGRES_DB=centinela_intel
+    volumes:
+      - pgdata_centinela:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d # Carga inicial de CVEs y Mitre ATT&CK
+    networks:
+      - centinela-net
+  # CONTENEDOR 2: Sistema de Pagos Tributarios (PHP Vulnerable)
+  gov-pago-vulnerable:
+    image: php:8.1-apache
+    container_name: target_gov_pago
+    restart: always
+    ports:
+      - "8080:80"
+    volumes:
+      - ./vulnerable-apps/php-tributos:/var/www/html
+    networks:
+      - centinela-net
+  gov-mysql:
+    image: mysql:5.7
+    container_name: target_gov_mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=toor
+      - MYSQL_DATABASE=tributos_db
+    networks:
+      - centinela-net
+  # CONTENEDOR 3: Plataforma de Tickets (Node.js Vulnerable)
+  tickets-vulnerable:
+    image: node:18-alpine
+    container_name: target_tickets_node
+    working_dir: /app
+    command: npm start
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./vulnerable-apps/node-tickets:/app
+    networks:
+      - centinela-net
+volumes:
+  pgdata_centinela:
