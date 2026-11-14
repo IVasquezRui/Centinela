@@ -36,6 +36,22 @@ from app.queue import PendingEvent, event_queue
 
 logger = logging.getLogger("centinela.gateway")
 
+# Límite del cuerpo de petición inspeccionable. Un cuerpo más grande se
+# rechaza con 413 antes de tocar el motor de reglas, para que una petición
+# gigante no agote la memoria del gateway ni amplifique un ReDoS.
+MAX_BODY_BYTES = 64 * 1024
+
+# Cabeceras hop-by-hop que el gateway NO debe reenviar (las gestiona httpx):
+# reenviarlas permite desincronización CL/TE y filtra metadatos de proxy.
+_HOP_BY_HOP_REQUEST_HEADERS = {
+    "host", "connection", "keep-alive", "proxy-connection", "transfer-encoding",
+    "te", "upgrade", "proxy-authorization", "content-length",
+}
+_HOP_BY_HOP_RESPONSE_HEADERS = {
+    "content-length", "transfer-encoding", "connection", "keep-alive",
+    "proxy-connection", "upgrade", "content-encoding",
+}
+
 gateway_app = FastAPI(title="CENTINELA Gateway", docs_url=None, redoc_url=None)
 
 _http_client: httpx.AsyncClient | None = None
@@ -92,9 +108,37 @@ def _client_ip(request: Request) -> str:
     """
     peer = request.client.host if request.client else "unknown"
     forwarded = request.headers.get("x-forwarded-for")
-    if forwarded and _is_trusted_proxy(peer):
-        return forwarded.split(",")[0].strip()
-    return peer
+    candidate = forwarded.split(",")[0].strip() if (forwarded and _is_trusted_proxy(peer)) else peer
+    # Valida que sea una IP real y trunca a 45 caracteres (IPv6 máximo): un
+    # X-Forwarded-For malformado no debe romper src_ip VARCHAR(64) ni permitir
+    # inyectar texto arbitrario en la evidencia.
+    try:
+        candidate = str(ipaddress.ip_address(candidate))
+    except ValueError:
+        candidate = peer
+    return candidate[:45]
+
+
+async def _reject_body_too_large(request: Request, src_ip: str, path: str, target_name: str) -> Response:
+    """Rechaza peticiones cuyo cuerpo supera MAX_BODY_BYTES (413 + evento)."""
+    await _record(
+        src_ip=src_ip,
+        method=request.method,
+        path=path,
+        target=target_name,
+        verdict="block",
+        rule_id="CNT-BODY-TOO-LARGE",
+        category="ips",
+        severity="media",
+        technique_id="T1498",
+        payload_sample=None,
+        engine_us=0,
+    )
+    return Response(
+        content='{"error": "payload_too_large", "max_bytes": %d}' % MAX_BODY_BYTES,
+        status_code=413,
+        media_type="application/json",
+    )
 
 
 @gateway_app.api_route(
@@ -130,7 +174,14 @@ async def proxy(full_path: str, request: Request) -> Response:
             media_type="application/json",
         )
 
+    content_length = request.headers.get("content-length")
+    if content_length and content_length.isdigit() and int(content_length) > MAX_BODY_BYTES:
+        return await _reject_body_too_large(request, src_ip, path, target_name)
+
     body = await request.body()
+    if len(body) > MAX_BODY_BYTES:
+        return await _reject_body_too_large(request, src_ip, path, target_name)
+
     normalized = normalize(
         method=request.method,
         path=request.url.path,
@@ -199,7 +250,11 @@ async def proxy(full_path: str, request: Request) -> Response:
             request.method,
             upstream_url,
             params=request.query_params,
-            headers={k: v for k, v in request.headers.items() if k.lower() != "host"},
+            headers={
+                k: v
+                for k, v in request.headers.items()
+                if k.lower() not in _HOP_BY_HOP_REQUEST_HEADERS
+            },
             content=body,
         )
     except httpx.HTTPError:
@@ -216,7 +271,7 @@ async def proxy(full_path: str, request: Request) -> Response:
         headers={
             k: v
             for k, v in upstream_response.headers.items()
-            if k.lower() not in {"content-length", "transfer-encoding", "connection"}
+            if k.lower() not in _HOP_BY_HOP_RESPONSE_HEADERS
         },
     )
 

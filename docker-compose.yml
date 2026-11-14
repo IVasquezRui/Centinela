@@ -1,6 +1,15 @@
 networks:
-  dmz-net:
+  # Red de borde: gateway + objetivos de laboratorio + frontend + simulador.
+  edge-net:
     driver: bridge
+  # Red de datos: SOLO centinela-core <-> centinela-db (evidencia aislada).
+  data-net:
+    driver: bridge
+    internal: true
+  # Red privada del objetivo A: SOLO gov-pago <-> gov-mysql.
+  targets-db-net:
+    driver: bridge
+    internal: true
 
 volumes:
   pgdata_centinela:
@@ -17,6 +26,8 @@ secrets:
     file: ./secrets/postgres_password.txt
   gov_mysql_root_password:
     file: ./secrets/gov_mysql_root_password.txt
+  gov_app_password:
+    file: ./secrets/gov_app_password.txt
   deepseek_api_key:
     file: ./secrets/deepseek_api_key.txt
 
@@ -40,7 +51,7 @@ services:
       - pgdata_centinela:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d:ro
     networks:
-      - dmz-net
+      - data-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-centinela} -d ${POSTGRES_DB:-centinela}"]
       interval: 5s
@@ -54,30 +65,50 @@ services:
     build: ./centinela-core
     container_name: centinela_core
     restart: unless-stopped
+    # Hardening (auditoría Fase 3): proceso no-root, sin capacidades,
+    # sistema de archivos de solo lectura y límites de recursos.
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 512m
+    cpus: 1.0
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-centinela}@centinela-db:5432/${POSTGRES_DB:-centinela}
-      # app/config.py inyecta la contraseña leyendo este archivo, así que la
-      # credencial no aparece en `docker inspect` ni en `ps`/logs.
+      # centinela-core se conecta SIEMPRE como "centinela_app" (rol de mínimos
+      # privilegios creado por db/init/03_grants.sh), nunca como el
+      # superusuario ${POSTGRES_USER} — conectarse como admin anularía en la
+      # práctica los REVOKE de auditoría, aunque existan en la base.
+      # app/config.py lee este mismo secreto del superusuario y deriva la
+      # contraseña real de centinela_app (sha256, ver secrets/README.md), así
+      # que la credencial no aparece en `docker inspect` ni en `ps`/logs y no
+      # hace falta un segundo secreto.
+      DATABASE_URL: postgresql+asyncpg://centinela_app@centinela-db:5432/${POSTGRES_DB:-centinela}
       DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
       DEEPSEEK_API_KEY_FILE: /run/secrets/deepseek_api_key
       ML_MODEL_PATH: ${ML_MODEL_PATH:-/app/ml/model/nsl_kdd_rf.joblib}
       # Lista de CIDR cuyos X-Forwarded-For se aceptan (vacío = no confiar en
       # ninguna cabecera de proxy: evita suplantación de IP de origen).
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      API_KEY: ${API_KEY:-}
       TARGET_GOV_PAGO_URL: http://gov-pago:80
       TARGET_TICKETS_URL: http://tickets:4000
     secrets:
       - postgres_password
       - deepseek_api_key
     ports:
-      - "${GATEWAY_PORT:-8080}:8080"
-      - "${API_PORT:-3000}:3000"
+      - "127.0.0.1:${GATEWAY_PORT:-8080}:8080"
+      - "127.0.0.1:${API_PORT:-3000}:3000"
     volumes:
       - ./ml/model:/app/ml/model:ro
     networks:
-      - dmz-net
+      - edge-net
+      - data-net
     depends_on:
       centinela-db:
         condition: service_healthy
@@ -92,21 +123,23 @@ services:
   # Panel SOC + Observatorio público
   # -----------------------------------------------------------------
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:${API_PORT:-3000}
+        VITE_API_KEY: ${API_KEY:-}
     container_name: centinela_frontend
     restart: unless-stopped
-    environment:
-      VITE_API_BASE_URL: http://localhost:${API_PORT:-3000}
     ports:
-      - "${FRONTEND_PORT:-5173}:5173"
+      - "127.0.0.1:${FRONTEND_PORT:-5173}:80"
     networks:
-      - dmz-net
+      - edge-net
     depends_on:
       - centinela-core
     healthcheck:
-      # wget de busybox (node:18-alpine): el servidor de Vite solo se declara
-      # sano cuando realmente sirve el index, no solo cuando el proceso vive.
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:5173/ || exit 1"]
+      # nginx (alpine/busybox) sirve los estáticos; se declara sano cuando
+      # responde el index real, no solo cuando el proceso vive.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:80/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -116,19 +149,24 @@ services:
   # Objetivo vulnerable A: gov-pago (PHP + MySQL) — SIN puertos publicados
   # -----------------------------------------------------------------
   gov-mysql:
-    image: mysql:5.7
+    image: mysql:8.0
     container_name: target_gov_mysql
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD_FILE: /run/secrets/gov_mysql_root_password
       MYSQL_DATABASE: ${GOV_MYSQL_DATABASE:-tributos_db}
+      # Cuenta de aplicación (débil/excesiva a propósito, ver db.php) creada
+      # por el mecanismo nativo de la imagen.
+      MYSQL_USER: gov_app
+      MYSQL_PASSWORD_FILE: /run/secrets/gov_app_password
     secrets:
       - gov_mysql_root_password
+      - gov_app_password
     volumes:
       - gov_mysql_data:/var/lib/mysql
       - ./targets/php-tributos/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
-      - dmz-net
+      - targets-db-net
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"$$(cat /run/secrets/gov_mysql_root_password)\" --silent"]
       interval: 10s
@@ -143,18 +181,26 @@ services:
     environment:
       MYSQL_HOST: gov-mysql
       MYSQL_DATABASE: ${GOV_MYSQL_DATABASE:-tributos_db}
-      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/gov_mysql_root_password
+      GOV_APP_USER: gov_app
+      GOV_APP_PASSWORD_FILE: /run/secrets/gov_app_password
     secrets:
-      - gov_mysql_root_password
+      - gov_app_password
     networks:
-      - dmz-net
+      - edge-net
+      - targets-db-net
     depends_on:
       gov-mysql:
         condition: service_healthy
     healthcheck:
-      # php:8.1-apache no trae curl/wget; se comprueba con el propio PHP que
-      # Apache acepta conexiones en el puerto 80.
-      test: ["CMD-SHELL", "php -r 'exit(@fsockopen(\"127.0.0.1\", 80) ? 0 : 1);'"]
+      # php:8.1-apache no trae curl/wget; se comprueba con el propio PHP.
+      # No basta con que Apache acepte conexiones (fsockopen): eso no detecta
+      # si la app puede hablar con MySQL. Se pide consulta.php de verdad y se
+      # falla si la respuesta trae un error de PHP — así un problema de
+      # conexión a la base de datos deja el servicio unhealthy en vez de
+      # healthy-pero-roto (así se detectó el bug de 'root'@'%' de arriba).
+      test:
+        - "CMD-SHELL"
+        - "php -r '$$r = @file_get_contents(\"http://127.0.0.1/consulta.php?cedula=V11111111\"); exit($$r !== false && strpos($$r, \"Fatal error\") === false ? 0 : 1);'"
       interval: 10s
       timeout: 5s
       retries: 12
@@ -169,7 +215,7 @@ services:
     container_name: target_tickets_node
     restart: unless-stopped
     networks:
-      - dmz-net
+      - edge-net
     healthcheck:
       # Comprueba que el proceso HTTP responde de verdad (status < 500) en 4000.
       test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:4000/tickets',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]
@@ -189,6 +235,6 @@ services:
     environment:
       GATEWAY_URL: http://centinela-core:8080
     networks:
-      - dmz-net
+      - edge-net
     depends_on:
       - centinela-core

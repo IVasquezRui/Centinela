@@ -1,4 +1,5 @@
 from functools import lru_cache
+import hashlib
 import ipaddress
 import logging
 from pathlib import Path
@@ -8,6 +9,24 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
 logger = logging.getLogger("centinela.config")
+
+# Rol de mínimos privilegios creado por db/init/03_grants.sh. No es
+# configurable: el nombre está hardcodeado también en ese script (los GRANT
+# apuntan literalmente a "centinela_app"), así que hacerlo variable aquí sin
+# tocar el SQL solo generaría una desincronización silenciosa.
+APP_DB_ROLE = "centinela_app"
+
+
+def derive_app_db_password(admin_password: str) -> str:
+    """Reproduce la derivación de db/init/03_grants.sh.
+
+    El rol centinela_app nunca comparte contraseña literal con el
+    superusuario de Postgres ni necesita un secreto propio: su password es
+    sha256("centinela_app:" + POSTGRES_PASSWORD), documentado en
+    secrets/README.md. Si esta fórmula cambia, debe cambiar en los dos
+    lados a la vez (este archivo y 03_grants.sh).
+    """
+    return hashlib.sha256(f"{APP_DB_ROLE}:{admin_password}".encode("utf-8")).hexdigest()
 
 
 def read_secret(file_path: str | None) -> str:
@@ -32,7 +51,11 @@ def read_secret(file_path: str | None) -> str:
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    database_url: str = "postgresql+asyncpg://centinela@localhost:5432/centinela"
+    database_url: str = f"postgresql+asyncpg://{APP_DB_ROLE}@localhost:5432/centinela"
+    # Apunta al MISMO secreto que POSTGRES_PASSWORD_FILE del superusuario
+    # (ver docker-compose.yml): la contraseña real del rol de aplicación se
+    # deriva de ahí con derive_app_db_password(), nunca se distribuye un
+    # segundo secreto para centinela_app.
     database_password_file: str = ""
 
     target_gov_pago_url: str = "http://gov-pago:80"
@@ -56,13 +79,21 @@ class Settings(BaseSettings):
     # la IP con la que el IPS decide la cuarentena.
     trusted_proxies: str = ""
 
+    # API del SOC: llave opcional para proteger /api/events, /api/stats,
+    # /api/blocklist y /api/audit/verify. Vacía => acceso sin llave (solo
+    # demo local). En producción se define y el panel envía X-API-Key.
+    api_key: str = ""
+    # Orígenes permitidos por CORS (separados por coma).
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+
     @model_validator(mode="after")
     def _inject_secrets_from_files(self) -> "Settings":
-        password = read_secret(self.database_password_file)
-        if password:
+        admin_password = read_secret(self.database_password_file)
+        if admin_password:
+            app_password = derive_app_db_password(admin_password)
             self.database_url = (
                 make_url(self.database_url)
-                .set(password=password)
+                .set(username=APP_DB_ROLE, password=app_password)
                 .render_as_string(hide_password=False)
             )
         if not self.deepseek_api_key:
@@ -81,6 +112,10 @@ class Settings(BaseSettings):
             except ValueError:
                 logger.warning("TRUSTED_PROXIES contiene un CIDR inválido: %r", item)
         return networks
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
 
 @lru_cache

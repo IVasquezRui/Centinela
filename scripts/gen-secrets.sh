@@ -12,10 +12,17 @@ umask 077
 mkdir -p secrets
 
 random_hex() {
+    # tr -d '\r\n' importa de verdad: en Git Bash para Windows, el openssl.exe
+    # del sistema suele escribir \r\n al final. Un secreto con un \r colgando
+    # provoca que la contraseña que arma el bootstrap de MySQL (leída por
+    # shell, que solo recorta \n) deje de coincidir con la que usa PHP
+    # (trim() sí recorta \r) — se autentica contra una cuenta y se verifica
+    # contra otra, silenciosamente. Sin esto, cualquier cuenta de MySQL
+    # creada a partir de estos secretos queda inservible en remoto.
     if command -v openssl >/dev/null 2>&1; then
-        openssl rand -hex 24
+        openssl rand -hex 24 | tr -d '\r\n'
     else
-        python3 -c 'import secrets; print(secrets.token_hex(24))'
+        python3 -c 'import secrets; print(secrets.token_hex(24))' | tr -d '\r\n'
     fi
 }
 
@@ -32,6 +39,7 @@ generate() {
 
 generate postgres_password.txt
 generate gov_mysql_root_password.txt
+generate gov_app_password.txt
 
 # La API key del copiloto la pega el equipo: se crea vacía para que el
 # montaje del secreto exista y la plataforma use la plantilla de respaldo.

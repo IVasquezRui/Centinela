@@ -24,6 +24,7 @@ function New-RandomSecret([string]$Name) {
 
 New-RandomSecret "postgres_password.txt"
 New-RandomSecret "gov_mysql_root_password.txt"
+New-RandomSecret "gov_app_password.txt"
 
 $apiKey = Join-Path $secretsDir "deepseek_api_key.txt"
 if (-not (Test-Path $apiKey)) {

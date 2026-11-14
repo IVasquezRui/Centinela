@@ -1,0 +1,9 @@
+# Sin esto, Windows con core.autocrlf=true convierte los .sh a CRLF al
+# hacer checkout. Un script con "#!/bin/sh\r" falla al ejecutarse dentro de
+# un contenedor Linux con un críptico "exec ...: no such file or directory"
+# (el shebang con \r apunta a un intérprete que no existe). Forzar LF aquí
+# evita que vuelva a pasar en cualquier checkout futuro en Windows.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf

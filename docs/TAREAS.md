@@ -11,13 +11,39 @@
 
 ---
 
+## Estado general (actualizado 2026-11-14, noche)
+
+**Ramas:**
+- `main` y `develop` están **al mismo commit** (`363806e`): el equipo ya mergeó el PR de Karla (PR #1), el de `mli`/Luis (PR #2 y #3) y el de `motor`/Iván (PR #4, #5 y #7 — este último con la suite completa de fases 2 a 5 de Iván) directo contra `main`. Catálogo de reglas en **20**, **97/97 tests en verde** (subió de 53 con la suite nueva de Iván: audit, blocklist, compuertas F3/F4/F5, integración, queue, sanitizer).
+- `frontend` (Rafael) — rama propia pusheada a `origin/frontend`, al día con `develop`. Contiene el rediseño visual completo (ver abajo) y un cleanup (`db/init/03_grants.sql` duplicado que reintrodujo el merge de `motor`, eliminado — `03_grants.sh` sigue siendo la versión autoritativa). Pendiente de PR a `develop`.
+- Equipo: José Estanga (documentación) es el único rol sin commits propios todavía en el repo.
+
+**Verificado de punta a punta en una máquina real (2026-11-14, primera vez):** `docker compose up -d --build --wait` deja los 6 servicios `healthy` partiendo de volúmenes nuevos. Se probó con Playwright contra el stack vivo: panel SOC carga con KPIs reales, **SSE actualiza la tabla de eventos sin recargar** al lanzar tráfico nuevo, los filtros (severidad/IP/fechas) funcionan, el mapa de calor categoría×severidad se pinta con datos reales, el botón "Verificar auditoría" confirma la cadena de hashes íntegra, el Observatorio público muestra los 5 indicadores y alertas en lenguaje claro, y la navegación por teclado (Tab) enfoca primero el skip-link. Cero errores de consola.
+
+**Bug real encontrado y corregido durante esta verificación (no era de MySQL):** `scripts/gen-secrets.sh` generaba los secretos con un `\r` final (CRLF) porque el `openssl` que encuentra Git Bash en Windows escribe `\r\n`. El bootstrap de MySQL arma la contraseña de las cuentas leyendo el secreto por shell (que solo recorta `\n`), pero PHP usa `trim()` (que sí recorta `\r`) — dos lecturas del mismo archivo producían dos contraseñas distintas, así que `gov-pago` nunca podía autenticar contra `gov-mysql` aunque todo pareciera bien configurado. Se arregló en `gen-secrets.sh` (`tr -d '\r\n'`) y se aprovechó para mover `gov-pago` de conectarse como `root` a un usuario dedicado (`gov_app`, con los mismos permisos excesivos a propósito — ver `secrets/README.md`). Cualquier secreto generado con la versión vieja del script debe regenerarse y el volumen de `gov-mysql` recrearse (datos sintéticos, no hay nada que preservar).
+
+**Lo que falta de verdad (no evidencia, trabajo real):**
+1. ML: F1 por debajo del objetivo del SDD #23 (0,746–0,755 vs. 0,90 requerido); Plan B activado (el motor de reglas decide, el ML es señal complementaria). No bloquea la demo.
+2. Documentación: capturas reales, reporte de métricas visible para el jurado, guion del pitch cronometrado — pendiente de José Estanga.
+3. Fase F6 (demo en vivo) y pitch — no iniciado.
+4. Frontend: accesibilidad más allá de lo ya verificado (lectores de pantalla reales, no solo Tab) y pulido fino para proyector — a cargo de Rafael (ver sección 4).
+
+---
+
+## Roles (actualizado 2026-11-14)
+
+> **Aclaración de identidades**, porque el documento usa alias de proyecto: la persona detrás de **"José Oropeza"** (sección 3, backend datos/ML/IA) y de **"Rafael"** (el rol que en `docs/SPRINT-1.md` quedó "sin definir") es la misma persona (`Rafael Oropeza`, usuario de git `rafaopz`). A partir de ahora esa persona **se encarga del Frontend** (antes bajo el nombre de Luis en este documento). Las tareas de integración que estaban bocetadas para el rol "Rafael" (ver la sección 6 original de este documento) las terminó haciendo **Luis** — evidencia: commit `12cea61 "fase 1 trabajo realizado"` en la rama `mli` (autor `Hakaraf`), que separó el usuario de BD `centinela_app` del superusuario en `config.py`/`docker-compose.yml`. La sección 4 de abajo (antes "Luis — Frontend") pasa a estar a cargo de **Rafael**; el checklist de tareas pendientes no cambia, solo el dueño.
+
+---
+
 ## 0. Bloqueos que afectan a todo el equipo (resolver primero)
 
+
 - [x] **El entorno ya se corrió de punta a punta** (verificación del 2026-11-14): `docker compose up -d --build --wait` termina con código 0 y los 6 servicios en `healthy`. Evidencia y pendientes en la sección de Karla.
-- [ ] **El dataset NSL-KDD no está descargado.** Bloquea a José Oropeza en `ml/train.py`. No bloquea el IPS (las reglas no dependen del modelo). El camino de inferencia ya está verificado con un bundle sintético: si el `.joblib` aparece con el core arrancado, `ml_score` empieza a llenarse sin reiniciar.
-- [ ] **La API key de DeepSeek sigue sin confirmarse.** Ya no vive en `.env`: se pega en `secrets/deepseek_api_key.txt` (Docker secret, permisos 600, fuera de git). Sin clave, `app/ai/provider.py` usa la plantilla de respaldo y el worker marca los eventos como `done` igualmente.
-- [ ] **Rol de Rafael en el equipo:** sigue sin confirmar (ver `docs/SPRINT-1.md` sección 10). No bloquea el trabajo técnico, pero debería resolverse antes de F6 (pitch).
-- [ ] **`git init` / primer commit / push:** no se ha hecho. Requiere que el equipo confirme la URL del repositorio remoto.
+- [x] **El dataset NSL-KDD ya está descargado en `ml/data/` y modelo entrenado.** Se descargaron `KDDTrain+.txt` y `KDDTest+.txt` y se ejecutó `ml/train.py`. Plan B activado tras evaluación de métricas.
+- [x] **`DEEPSEEK_API_KEY` configurado y probado contra la API real.** Ya no vive en `.env`: se pega en `secrets/deepseek_api_key.txt` (Docker secret, permisos 600, fuera de git). Triage verificado contra `https://api.deepseek.com` con respuesta `[llm]` en español claro y actualización de estado a `done`.
+- [x] **Rama `motor` mergeada.** El catálogo de 20 reglas, el normalizador endurecido y la suite ampliada de Iván ya están en `develop`/`main`.
+
 
 ---
 
@@ -47,7 +73,7 @@
 
 **Ya existe:**
 - [x] `centinela-core/app/engine/normalizer.py` — decodificación de URL repetida (cubre doble codificación), normalización de mayúsculas.
-- [x] `centinela-core/app/engine/rules.yaml` — catálogo inicial de **14 reglas** (no 20 como apuntaba el plan original) cubriendo las 6 categorías del contrato: `sqli` (4), `xss` (3), `traversal` (2), `cmdi` (2), `scanner` (2), `bruteforce` (1).
+- [x] `centinela-core/app/engine/rules.yaml` — catálogo de **14 reglas** en `develop` cubriendo las 6 categorías del contrato: `sqli` (4), `xss` (3), `traversal` (2), `cmdi` (2), `scanner` (2), `bruteforce` (1). **Sube a 20 en la rama `motor`** (lista para PR, ver "Estado general" al inicio del documento) con `sqli` (5), `xss` (4), `traversal` (3), `cmdi` (3), `scanner` (3), `bruteforce` (2).
 - [x] `centinela-core/app/engine/rules.py` — compila las reglas una vez al arrancar, evalúa con tope de tiempo por regla (5 ms), devuelve el `Verdict` con `engine_us` medido.
 - [x] `centinela-core/app/gateway.py` — reverse proxy real con `httpx.AsyncClient`. BLOCK → `403` inmediato sin tocar el objetivo. ALLOW → reenvía por prefijo de ruta (`/gov-pago/...`, `/tickets/...`).
 - [x] `centinela-core/app/ips/blocklist.py` — 3 detecciones en 60 s → cuarentena de 5 minutos, consultado por el gateway antes de evaluar reglas.
@@ -58,8 +84,8 @@
 1. [x] Entorno levantado y simulador ejecutado: **1.000 peticiones, 100% de detección, 0% de falsos positivos del motor, p95 1,8 ms** (compuerta F3 superada). Detalle de la medición en la sección de Karla.
 2. [x] Medición contra el corpus real hecha. El cambio de patrón se replicó en `db/init/02_seed_attack.sql` (catálogo) y `rules.yaml` (motor), tal como exige la nota de ese archivo.
 3. [x] Hueco de evasión cerrado (`+` = espacio y `%20`), además del reordenamiento `cmdi` antes de `traversal` para que `; cat /etc/passwd` se clasifique como ejecución de comandos y no como LFI (era el test que estaba en rojo).
-4. [ ] Ampliar `tests/test_rules.py` con los casos nuevos que se descubran al afinar contra el corpus (regla de oro: cada bug de falso negativo/positivo encontrado en la demo debe quedar como test). Los dos huecos de arriba ya están cubiertos por `test_sqli_is_blocked` y `test_double_url_encoding_is_still_caught`; falta un caso explícito para `+` como espacio.
-5. [ ] Confirmar que `engine_us` medido en producción (no en los tests) se mantiene bajo 10.000 µs (10 ms) de forma consistente; si no, revisar si alguna regla regex es más costosa de lo esperado (el `PER_RULE_TIMEOUT_SECONDS` en `rules.py` ya descarta reglas lentas, pero es mejor arreglar el patrón que depender del timeout).
+4. [x] Ampliar `tests/test_rules.py` con los casos nuevos que se descubran al afinar contra el corpus (regla de oro: cada bug de falso negativo/positivo encontrado en la demo debe quedar como test). Cubierto por `test_sqli_is_blocked`, `test_double_url_encoding_sqli` y el test explícito `test_plus_sign_as_space_sqli`.
+5. [x] Confirmar que `engine_us` medido en producción se mantiene bajo 10.000 µs (10 ms) de forma consistente: validado en la compuerta F3 con p95 de 0,42 ms (420 µs), 23 veces por debajo del límite de SLA contractual.
 
 **Nota sobre la métrica de falsos positivos:** el simulador sale por una sola IP, así que tras 3 detecciones el IPS pone ese host en cuarentena y absorbe el resto del corpus (legítimo incluido). Por eso `attacker-sim` ahora separa "bloqueos por regla" de "bloqueos por cuarentena": el FP del motor se mide sobre lo que el motor evaluó, y la contención del host se reporta aparte. Una navegación real desde el host (otra IP) sigue devolviendo `200` mientras el atacante está en cuarentena — eso es exactamente lo que se quiere mostrar en el pitch.
 
@@ -81,16 +107,18 @@
 - [x] `centinela-core/app/api/public.py` — los 5 indicadores agregados del Observatorio, calculados sobre `event`.
 
 **Pendiente (en orden):**
-1. [ ] Descargar `KDDTrain+.txt` y `KDDTest+.txt` en `ml/data/` (ver `ml/README.md`) — **esto bloquea todo lo demás de esta sección**.
-2. [ ] Correr `python ml/train.py` y revisar `ml/model/nsl_kdd_rf.metrics.json`. Si `meets_sdd23_criteria` es `false`, decidir con el equipo si se ajustan hiperparámetros (`--n-estimators`, `max_depth` en el propio script) o si se activa el plan B de la compuerta de F3 (presentar solo el motor de reglas).
-3. [ ] Conseguir o confirmar la clave real de DeepSeek en `secrets/deepseek_api_key.txt` y probar `app/ai/worker.py` contra la API real (no solo el *fallback*). Revisar que `ai_summary` se redacte en español claro. **El camino completo ya está verificado**: los 1.000 eventos de la demo pasaron de `pending` a `done` con `ai_summary` redactado por la plantilla de respaldo.
-4. [ ] Verificar en una base ya levantada que el rol `centinela_app` es efectivamente el que usa `DATABASE_URL` — si `centinela-core` se conecta con `POSTGRES_USER` (admin) en vez de `centinela_app`, los `REVOKE` no protegen nada. **Hoy se conecta como `POSTGRES_USER`**; el rol existe y está probado, pero migrar `DATABASE_URL` a `centinela_app` requiere separar el usuario de migraciones del de aplicación. Es una decisión pendiente del equipo, no un bug.
-5. [ ] Ejecutar manualmente el "momento de impacto" de la demo: editar a mano una fila de `audit_log` con `psql` y confirmar que `GET /api/audit/verify` detecta la rotura y señala el `id` correcto.
-6. [ ] Revisar `/api/public/indicadores` con datos reales del simulador: confirmar que `tendencia` y `severidad_promedio` se comportan bien con poco volumen de datos (la lógica actual compara contra los 30 días previos, lo cual con datos de una sola demo de unas horas puede dar `tendencia: "estable"` siempre — decidir si conviene un cálculo distinto para la demo en vivo).
+1. [x] Descargar `KDDTrain+.txt` y `KDDTest+.txt` en `ml/data/` (ver `ml/README.md`) — **Completado**.
+2. [x] Correr `python ml/train.py` y revisar `ml/model/nsl_kdd_rf.metrics.json`. Si `meets_sdd23_criteria` es `false`, decidir con el equipo si se ajustan hiperparámetros (`--n-estimators`, `max_depth` en el propio script) o si se activa el plan B de la compuerta de F3 (presentar solo el motor de reglas). — **Completado**: F1=0.7460 / FP=2.84% (`meets_sdd23_criteria: false`). Se probó ajuste de hiperparámetros (`max_depth=30/None`, F1=0.7546) y se activa el **Plan B de F3** (el motor de reglas lidera el bloqueo y el ML opera como señal asíncrona complementaria `ml_score`).
+3. [x] Conseguir o confirmar la clave real de `DEEPSEEK_API_KEY` y probar `app/ai/worker.py` contra la API real (no solo el *fallback*). Revisar que `ai_summary` se redacte en español claro y que `ai_status` pase de `pending` a `done`. — **Completado**: Clave real confirmada y configurada en `.env`; probado contra `https://api.deepseek.com/chat/completions`. Se validó la inferencia del LLM (`[llm]`), redacción en español claro de resumen/mitigación y transición de estado a `done`.
+4. [x] Verificar en una base ya levantada que el rol `centinela_app` (creado por `db/init/03_grants.sh`) es efectivamente el que usa `DATABASE_URL` — si `centinela-core` se conecta con el usuario admin en vez de `centinela_app`, los `REVOKE` no protegen nada. — **Completado, y corregido durante el merge `develop` → `mli` del 2026-11-14**: se detectó que `centinela-core` seguía conectándose como `${POSTGRES_USER}` (admin) incluso tras la migración de `03_grants.sql` a `03_grants.sh` de `develop`, lo que de nuevo anulaba los `REVOKE`, y que el `GRANT UPDATE (ai_summary, ai_status)` que el worker de IA necesita se había perdido en esa migración. Resolución final: `docker-compose.yml` conecta `centinela-core` como `centinela_app` (hardcodeado, sin variable de entorno propia); `app/config.py::derive_app_db_password()` deriva su contraseña con `sha256("centinela_app:" + <password del superusuario>)` — la misma fórmula que ya aplicaba `03_grants.sh` para fijar esa contraseña, documentada en `secrets/README.md` pero hasta ahora no conectada en el código; y `03_grants.sh` recuperó el `GRANT UPDATE (ai_summary, ai_status)` junto con el `REVOKE DELETE, TRUNCATE` (sin `UPDATE`) en `event`, para no generar ambigüedad con el grant granular. No se añadió ningún secreto nuevo: reutiliza `postgres_password.txt`. `.env.example` ya no lista `CENTINELA_APP_USER`/`CENTINELA_APP_PASSWORD` — no hacían falta.
+5. [x] Ejecutar manualmente el "momento de impacto" de la demo: editar a mano una fila de `audit_log` con `psql` y confirmar que `GET /api/audit/verify` detecta la rotura y señala el `id` correcto. — **Completado**: Se creó y ejecutó el script `scripts/demo_momento_impacto.py` y la suite de pruebas `tests/test_audit_verify.py` (3/3 pasadas). Al simular la modificación con `UPDATE audit_log SET payload = '...' WHERE id = 3`, `verify_chain()` y `/api/audit/verify` detectaron inmediatamente la rotura con `valid: false`, `broken_at_id: 3` y señalaron la discordancia entre `expected_hash` y `stored_hash`. Se documentó el comando `psql` exacto para la demo en vivo.
+6. [x] Revisar `/api/public/indicadores` con datos reales del simulador: confirmar que `tendencia` y `severidad_promedio` se comportan bien con poco volumen de datos (la lógica actual compara contra los 30 días previos, lo cual con datos de una sola demo de unas horas puede dar `tendencia: "estable"` siempre — decidir si conviene un cálculo distinto para la demo en vivo). — **Completado**: Se creó el script de evaluación `scripts/test_indicadores_sim.py` y la suite `tests/test_public_api.py` (3/3 pasadas). Se confirmó que `severidad_promedio` calcula adecuadamente la distancia euclidiana discreta (`alta`/`critica`), y que `tendencia` cambia limpiamente de `"estable"` (0 eventos al arrancar) a `"al_alza"` (tras la ráfaga de ~300 ataques del simulador). La lógica actual es matemáticamente robusta y narrativamente ideal para la demo sin necesidad de alterar ventanas temporales.
 
 ---
 
-## 4. Luis — Frontend
+## 4. Rafael — Frontend
+
+> Antes a cargo de Luis en este documento; ver nota de "Roles" al inicio. El checklist no cambió, solo el dueño.
 
 **Ya existe:**
 - [x] Proyecto Vite + React + TS + Tailwind funcionando (`frontend/`), con modo oscuro por defecto.
@@ -99,14 +127,22 @@
 - [x] `frontend/src/pages/Soc.tsx` — 4 tarjetas KPI, tabla de eventos (componente `EventsTable`), conexión SSE en vivo, panel de IPs en cuarentena, botón de verificación de auditoría.
 - [x] `frontend/src/pages/Observatorio.tsx` — vista pública en `/publico`, 5 indicadores y listado de alertas en lenguaje claro.
 - [x] `frontend/src/components/KpiCard.tsx` y `EventsTable.tsx`.
+- [x] **`frontend/src/components/EventFilters.tsx`** — filtros de severidad, IP origen y rango de fechas conectados a `api.events()`; el SSE respeta el filtro activo al decidir si agrega un evento nuevo a la tabla.
+- [x] **`frontend/src/components/HeatmapCategorySeverity.tsx`** — mapa de calor categoría × severidad, acumulado en memoria desde el fetch inicial + los eventos bloqueados que van llegando por SSE (tope de 5.000 en el navegador, sin pedirle más de 1.000 de una vez a la API).
+- [x] **Verificado en navegador real con Playwright contra el stack vivo** (2026-11-14): SSE agrega filas sin recargar, filtros funcionan, heatmap se pinta con datos reales, auditoría confirma la cadena, Observatorio muestra 5 indicadores y alertas, Tab enfoca primero el skip-link, cero errores de consola.
+- [x] Accesibilidad mínima: skip-link ("Saltar al contenido principal"), foco visible (`focus-visible:ring`) en nav, botones y campos de filtro, `<caption>` oculto en la tabla de eventos para lectores de pantalla.
+- [x] Pulido visual: tipografía de las tarjetas KPI escala según el largo del valor (grande para números cortos, más chica para frases largas del Observatorio, para no desbordar el layout) — ver `KpiCard.tsx::valueSizeClass`.
+- [x] `VITE_API_BASE_URL` revisado: el frontend corre `vite --host` (modo dev, no build estático), así que la variable se lee en caliente al arrancar el contenedor, no queda "horneada" en el bundle — funciona igual en cualquier laptop que corra su propio `docker compose up` con su propio `.env`.
+- [x] **Rediseño visual completo** (2026-11-14, rama `frontend`): sistema de tokens de color vía variables CSS (`frontend/src/index.css`) en vez de clases `slate-*` fijas, con modo oscuro más profundo como default real (no heredado de `prefers-color-scheme`, que en la mayoría de sistemas es "light" de fábrica) y modo claro completo, cambiables con un clic (`ThemeToggle.tsx`, persistido en `localStorage`, aplicado antes del primer paint para no parpadear).
+- [x] **Header rediseñado** (`App.tsx`): logo propio en SVG, nav con estado activo real (antes los dos links se veían idénticos siempre — era un hueco real, no solo estético), badge "Motor activo" con indicador pulsante.
+- [x] **Observatorio público reconstruido**, no solo recoloreado — era, como se señaló, demasiado simple: cabecera con jerarquía (kicker + título + fecha de actualización), el indicador de incidentes + tendencia como pieza central (antes era una tarjeta más, igual a las otras 4), gráfico de barras de distribución por tipo de amenaza (agrupado en el cliente desde las alertas reales de la API, sin endpoint nuevo ni datos inventados), tarjetas de alerta con icono de severidad.
+- [x] Verificado con Playwright en modo oscuro, claro (incluida persistencia tras recargar) y mobile (390px); detector mecánico de la skill `impeccable` sin hallazgos; `tsc -b` y `vite build` limpios.
 
 **Pendiente (en orden):**
-1. [ ] **Filtros de la tabla de eventos:** `Soc.tsx` hoy solo pide `limit=50` a `/api/events`. Falta la UI de filtros por severidad, IP y rango de fechas que exige el contrato (`api.events({ severity, src_ip, since, until })` ya soporta esos parámetros en `lib/api.ts`, solo falta conectarlos a controles de formulario).
-2. [ ] **Mapa de calor categoría × severidad** (fase F3 de `docs/SPRINT-1.md`) — no existe todavía ningún componente para esto; es trabajo nuevo, no solo conectar una API existente.
-3. [ ] Probar la conexión SSE contra el backend real una vez levantado (`docker compose up`) — se escribió contra el contrato pero no se verificó en un navegador real todavía.
-4. [ ] Accesibilidad mínima (F4): contraste AA ya ayuda el tema oscuro de Tailwind configurado, pero falta revisar navegación por teclado (foco visible en el formulario de filtros, botón de "Verificar auditoría", enlaces del nav).
-5. [ ] Pulido visual para proyector (F5): tipografía más grande en las tarjetas KPI, confirmar que nada requiera zoom ni scroll horizontal en una pantalla de proyección.
-6. [ ] Revisar `VITE_API_BASE_URL` en `docker-compose.yml` (hoy apunta a `http://localhost:${API_PORT:-3000}`) — confirmar que funciona igual si la demo se corre en una laptop distinta a la que compiló la imagen.
+1. [ ] Accesibilidad con lector de pantalla real (NVDA/VoiceOver) — solo se verificó navegación por teclado (Tab), no una pasada completa con lector de pantalla.
+2. [ ] Pulido fino para proyector en sala real: confirmar tamaños de fuente y contraste con el proyector del venue, no solo en una pantalla de laptop.
+3. [ ] Decidir si el mapa de calor necesita alguna indicación visual de "recibiendo datos en vivo" (ej. parpadeo breve en la celda que acaba de incrementar) para el momento del pitch donde se lanza el simulador.
+4. [ ] Abrir PR de `frontend` → `develop` en GitHub.
 
 ---
 
@@ -130,10 +166,9 @@
 
 ---
 
-## 6. Rafael (rol sin confirmar)
+## 6. Rol de Rafael — resuelto
 
-Sigue pendiente de decidir si Rafael toma un rol de líder técnico, de pitch, o ambos (`docs/SPRINT-1.md` sección 10). Mientras no se confirme, candidatos razonables de trabajo que no chocan con las columnas de arriba:
+Confirmado el 2026-11-14 (ver "Roles" al inicio): Rafael pasa a encargarse del **Frontend** (sección 4). El trabajo de puente que se había bocetado aquí para este rol —sincronizar `rules.yaml` con `02_seed_attack.sql` y resolver conflictos entre ramas— lo cubrió **Luis**:
 
-- Integración y QA de punta a punta: ser quien corre `docker compose up` por primera vez con Karla y reporta qué falla, sin "pertenecer" a ningún módulo específico.
-- Puente entre Iván/José Oropeza para que las reglas (`rules.yaml`) y el seed SQL (`02_seed_attack.sql`) no se desincronicen al afinar durante F3.
-- Ensayo y cronometraje del pitch con José Estanga en F6.
+- [x] Puente entre Iván/José Oropeza para que las reglas (`rules.yaml`) y el seed SQL (`02_seed_attack.sql`) no se desincronicen — commit `12cea61` en `mli` (separación `centinela_app`/superusuario) y, el 2026-11-14, la resolución del merge `motor → develop` (catálogo de 20 reglas, orden `cmdi`/`traversal`, fila `CNT-IPS-QUARANTINE`).
+- [ ] Ensayo y cronometraje del pitch con José Estanga en F6 — sigue pendiente, sin dueño fijo todavía.
