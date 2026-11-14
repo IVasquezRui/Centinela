@@ -21,6 +21,7 @@ cambia: solo enriquece el evento que se persiste.
 from __future__ import annotations
 
 import datetime as dt
+import ipaddress
 import logging
 import time
 
@@ -70,11 +71,30 @@ def _resolve_target(path: str) -> tuple[str, str, str] | None:
     return None
 
 
+def _is_trusted_proxy(peer: str) -> bool:
+    networks = get_settings().trusted_proxy_networks
+    if not networks:
+        return False
+    try:
+        address = ipaddress.ip_address(peer)
+    except ValueError:
+        return False
+    return any(address in network for network in networks)
+
+
 def _client_ip(request: Request) -> str:
+    """IP de origen usada por el IPS para decidir la cuarentena.
+
+    X-Forwarded-For solo se acepta si la conexión viene de un proxy declarado
+    en TRUSTED_PROXIES: cualquiera puede escribir esa cabecera, y confiar en
+    ella sin más permitiría a un atacante (a) esquivar su propia cuarentena
+    rotando el valor o (b) envenenar la cuarentena de una IP ajena.
+    """
+    peer = request.client.host if request.client else "unknown"
     forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
+    if forwarded and _is_trusted_proxy(peer):
         return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+    return peer
 
 
 @gateway_app.api_route(
@@ -88,6 +108,9 @@ async def proxy(full_path: str, request: Request) -> Response:
     target_name = target_match[0] if target_match else "unknown"
 
     if blocklist.is_quarantined(src_ip):
+        # La cuarentena no reevalúa reglas, pero el evento debe conservar la
+        # causa que llevó al bloqueo (SQLi, traversal, ...) en vez de inventarla.
+        context = blocklist.last_block_context(src_ip)
         await _record(
             src_ip=src_ip,
             method=request.method,
@@ -95,14 +118,14 @@ async def proxy(full_path: str, request: Request) -> Response:
             target=target_name,
             verdict="block",
             rule_id="CNT-IPS-QUARANTINE",
-            category="bruteforce",
-            severity="alta",
-            technique_id="T1110",
+            category=context["category"],
+            severity=context["severity"],
+            technique_id=context["technique_id"],
             payload_sample=None,
             engine_us=0,
         )
         return Response(
-            content='{"error": "ip_quarantined"}',
+            content='{"error": "ip_quarantined", "rule_id": "CNT-IPS-QUARANTINE"}',
             status_code=403,
             media_type="application/json",
         )
@@ -120,7 +143,12 @@ async def proxy(full_path: str, request: Request) -> Response:
     verdict = rule_engine.evaluate(normalized)
 
     if verdict.verdict == "block":
-        blocklist.record_block(src_ip)
+        blocklist.record_block(
+            src_ip,
+            category=verdict.category,
+            severity=verdict.severity,
+            technique_id=verdict.technique_id,
+        )
         await _record(
             src_ip=src_ip,
             method=request.method,

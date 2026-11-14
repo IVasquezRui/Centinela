@@ -19,6 +19,7 @@ F1-score >= 0.90 y tasa de falsos positivos <= 5% sobre el split de test.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 from pathlib import Path
 
@@ -55,12 +56,16 @@ def load_dataset(path: Path) -> pd.DataFrame:
 
 def encode_features(
     train_df: pd.DataFrame, test_df: pd.DataFrame
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, LabelEncoder]]:
     """Codifica columnas categóricas con el mismo encoder ajustado en train.
 
     Categorías del test no vistas en train (frecuente en NSL-KDD, ej. algunos
     valores de `service`) se mapean a una categoría "unknown" explícita para
     no romper en inferencia.
+
+    Devuelve también los encoders: se guardan junto al modelo porque en
+    inferencia (centinela-core/app/engine/ml.py) hay que reproducir exactamente
+    la misma codificación; sin ellos, "tcp" o "http" no se pueden transformar.
     """
     encoders: dict[str, LabelEncoder] = {}
     for column in CATEGORICAL_COLUMNS:
@@ -76,7 +81,7 @@ def encode_features(
         )
         test_df[column] = encoder.transform(test_values)
 
-    return train_df, test_df
+    return train_df, test_df, encoders
 
 
 def main() -> None:
@@ -95,7 +100,7 @@ def main() -> None:
 
     train_df = load_dataset(args.train)
     test_df = load_dataset(args.test)
-    train_df, test_df = encode_features(train_df, test_df)
+    train_df, test_df, encoders = encode_features(train_df, test_df)
 
     feature_columns = [c for c in COLUMN_NAMES if c not in ("label", "difficulty")]
     X_train, y_train = train_df[feature_columns], train_df["is_attack"]
@@ -127,7 +132,17 @@ def main() -> None:
     }
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(model, args.out)
+    # Se guarda un bundle autocontenido: modelo + encoders + orden de columnas.
+    # app/engine/ml.py lo consume tal cual; un .joblib con solo el estimador
+    # obligaría a adivinar la codificación de protocol_type/service/flag.
+    artifact = {
+        "model": model,
+        "encoders": encoders,
+        "feature_columns": feature_columns,
+        "categorical_columns": CATEGORICAL_COLUMNS,
+        "trained_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+    }
+    joblib.dump(artifact, args.out)
 
     metrics_path = args.out.with_suffix(".metrics.json")
     metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
