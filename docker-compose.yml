@@ -57,9 +57,15 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-centinela}@centinela-db:5432/${POSTGRES_DB:-centinela}
-      # app/config.py inyecta la contraseña leyendo este archivo, así que la
-      # credencial no aparece en `docker inspect` ni en `ps`/logs.
+      # centinela-core se conecta SIEMPRE como "centinela_app" (rol de mínimos
+      # privilegios creado por db/init/03_grants.sh), nunca como el
+      # superusuario ${POSTGRES_USER} — conectarse como admin anularía en la
+      # práctica los REVOKE de auditoría, aunque existan en la base.
+      # app/config.py lee este mismo secreto del superusuario y deriva la
+      # contraseña real de centinela_app (sha256, ver secrets/README.md), así
+      # que la credencial no aparece en `docker inspect` ni en `ps`/logs y no
+      # hace falta un segundo secreto.
+      DATABASE_URL: postgresql+asyncpg://centinela_app@centinela-db:5432/${POSTGRES_DB:-centinela}
       DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
       DEEPSEEK_API_KEY_FILE: /run/secrets/deepseek_api_key
       ML_MODEL_PATH: ${ML_MODEL_PATH:-/app/ml/model/nsl_kdd_rf.joblib}

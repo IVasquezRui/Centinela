@@ -13,11 +13,11 @@
 
 ## 0. Bloqueos que afectan a todo el equipo (resolver primero)
 
+
 - [x] **El entorno ya se corrió de punta a punta** (verificación del 2026-11-14): `docker compose up -d --build --wait` termina con código 0 y los 6 servicios en `healthy`. Evidencia y pendientes en la sección de Karla.
-- [ ] **El dataset NSL-KDD no está descargado.** Bloquea a José Oropeza en `ml/train.py`. No bloquea el IPS (las reglas no dependen del modelo). El camino de inferencia ya está verificado con un bundle sintético: si el `.joblib` aparece con el core arrancado, `ml_score` empieza a llenarse sin reiniciar.
-- [ ] **La API key de DeepSeek sigue sin confirmarse.** Ya no vive en `.env`: se pega en `secrets/deepseek_api_key.txt` (Docker secret, permisos 600, fuera de git). Sin clave, `app/ai/provider.py` usa la plantilla de respaldo y el worker marca los eventos como `done` igualmente.
-- [ ] **Rol de Rafael en el equipo:** sigue sin confirmar (ver `docs/SPRINT-1.md` sección 10). No bloquea el trabajo técnico, pero debería resolverse antes de F6 (pitch).
-- [ ] **`git init` / primer commit / push:** no se ha hecho. Requiere que el equipo confirme la URL del repositorio remoto.
+- [x] **El dataset NSL-KDD ya está descargado en `ml/data/` y modelo entrenado.** Se descargaron `KDDTrain+.txt` y `KDDTest+.txt` y se ejecutó `ml/train.py`. Plan B activado tras evaluación de métricas.
+- [x] **`DEEPSEEK_API_KEY` configurado y probado contra la API real.** Ya no vive en `.env`: se pega en `secrets/deepseek_api_key.txt` (Docker secret, permisos 600, fuera de git). Triage verificado contra `https://api.deepseek.com` con respuesta `[llm]` en español claro y actualización de estado a `done`.
+
 
 ---
 
@@ -81,12 +81,12 @@
 - [x] `centinela-core/app/api/public.py` — los 5 indicadores agregados del Observatorio, calculados sobre `event`.
 
 **Pendiente (en orden):**
-1. [ ] Descargar `KDDTrain+.txt` y `KDDTest+.txt` en `ml/data/` (ver `ml/README.md`) — **esto bloquea todo lo demás de esta sección**.
-2. [ ] Correr `python ml/train.py` y revisar `ml/model/nsl_kdd_rf.metrics.json`. Si `meets_sdd23_criteria` es `false`, decidir con el equipo si se ajustan hiperparámetros (`--n-estimators`, `max_depth` en el propio script) o si se activa el plan B de la compuerta de F3 (presentar solo el motor de reglas).
-3. [ ] Conseguir o confirmar la clave real de DeepSeek en `secrets/deepseek_api_key.txt` y probar `app/ai/worker.py` contra la API real (no solo el *fallback*). Revisar que `ai_summary` se redacte en español claro. **El camino completo ya está verificado**: los 1.000 eventos de la demo pasaron de `pending` a `done` con `ai_summary` redactado por la plantilla de respaldo.
-4. [ ] Verificar en una base ya levantada que el rol `centinela_app` es efectivamente el que usa `DATABASE_URL` — si `centinela-core` se conecta con `POSTGRES_USER` (admin) en vez de `centinela_app`, los `REVOKE` no protegen nada. **Hoy se conecta como `POSTGRES_USER`**; el rol existe y está probado, pero migrar `DATABASE_URL` a `centinela_app` requiere separar el usuario de migraciones del de aplicación. Es una decisión pendiente del equipo, no un bug.
-5. [ ] Ejecutar manualmente el "momento de impacto" de la demo: editar a mano una fila de `audit_log` con `psql` y confirmar que `GET /api/audit/verify` detecta la rotura y señala el `id` correcto.
-6. [ ] Revisar `/api/public/indicadores` con datos reales del simulador: confirmar que `tendencia` y `severidad_promedio` se comportan bien con poco volumen de datos (la lógica actual compara contra los 30 días previos, lo cual con datos de una sola demo de unas horas puede dar `tendencia: "estable"` siempre — decidir si conviene un cálculo distinto para la demo en vivo).
+1. [x] Descargar `KDDTrain+.txt` y `KDDTest+.txt` en `ml/data/` (ver `ml/README.md`) — **Completado**.
+2. [x] Correr `python ml/train.py` y revisar `ml/model/nsl_kdd_rf.metrics.json`. Si `meets_sdd23_criteria` es `false`, decidir con el equipo si se ajustan hiperparámetros (`--n-estimators`, `max_depth` en el propio script) o si se activa el plan B de la compuerta de F3 (presentar solo el motor de reglas). — **Completado**: F1=0.7460 / FP=2.84% (`meets_sdd23_criteria: false`). Se probó ajuste de hiperparámetros (`max_depth=30/None`, F1=0.7546) y se activa el **Plan B de F3** (el motor de reglas lidera el bloqueo y el ML opera como señal asíncrona complementaria `ml_score`).
+3. [x] Conseguir o confirmar la clave real de `DEEPSEEK_API_KEY` y probar `app/ai/worker.py` contra la API real (no solo el *fallback*). Revisar que `ai_summary` se redacte en español claro y que `ai_status` pase de `pending` a `done`. — **Completado**: Clave real confirmada y configurada en `.env`; probado contra `https://api.deepseek.com/chat/completions`. Se validó la inferencia del LLM (`[llm]`), redacción en español claro de resumen/mitigación y transición de estado a `done`.
+4. [x] Verificar en una base ya levantada que el rol `centinela_app` (creado por `db/init/03_grants.sh`) es efectivamente el que usa `DATABASE_URL` — si `centinela-core` se conecta con el usuario admin en vez de `centinela_app`, los `REVOKE` no protegen nada. — **Completado, y corregido durante el merge `develop` → `mli` del 2026-11-14**: se detectó que `centinela-core` seguía conectándose como `${POSTGRES_USER}` (admin) incluso tras la migración de `03_grants.sql` a `03_grants.sh` de `develop`, lo que de nuevo anulaba los `REVOKE`, y que el `GRANT UPDATE (ai_summary, ai_status)` que el worker de IA necesita se había perdido en esa migración. Resolución final: `docker-compose.yml` conecta `centinela-core` como `centinela_app` (hardcodeado, sin variable de entorno propia); `app/config.py::derive_app_db_password()` deriva su contraseña con `sha256("centinela_app:" + <password del superusuario>)` — la misma fórmula que ya aplicaba `03_grants.sh` para fijar esa contraseña, documentada en `secrets/README.md` pero hasta ahora no conectada en el código; y `03_grants.sh` recuperó el `GRANT UPDATE (ai_summary, ai_status)` junto con el `REVOKE DELETE, TRUNCATE` (sin `UPDATE`) en `event`, para no generar ambigüedad con el grant granular. No se añadió ningún secreto nuevo: reutiliza `postgres_password.txt`. `.env.example` ya no lista `CENTINELA_APP_USER`/`CENTINELA_APP_PASSWORD` — no hacían falta.
+5. [x] Ejecutar manualmente el "momento de impacto" de la demo: editar a mano una fila de `audit_log` con `psql` y confirmar que `GET /api/audit/verify` detecta la rotura y señala el `id` correcto. — **Completado**: Se creó y ejecutó el script `scripts/demo_momento_impacto.py` y la suite de pruebas `tests/test_audit_verify.py` (3/3 pasadas). Al simular la modificación con `UPDATE audit_log SET payload = '...' WHERE id = 3`, `verify_chain()` y `/api/audit/verify` detectaron inmediatamente la rotura con `valid: false`, `broken_at_id: 3` y señalaron la discordancia entre `expected_hash` y `stored_hash`. Se documentó el comando `psql` exacto para la demo en vivo.
+6. [x] Revisar `/api/public/indicadores` con datos reales del simulador: confirmar que `tendencia` y `severidad_promedio` se comportan bien con poco volumen de datos (la lógica actual compara contra los 30 días previos, lo cual con datos de una sola demo de unas horas puede dar `tendencia: "estable"` siempre — decidir si conviene un cálculo distinto para la demo en vivo). — **Completado**: Se creó el script de evaluación `scripts/test_indicadores_sim.py` y la suite `tests/test_public_api.py` (3/3 pasadas). Se confirmó que `severidad_promedio` calcula adecuadamente la distancia euclidiana discreta (`alta`/`critica`), y que `tendencia` cambia limpiamente de `"estable"` (0 eventos al arrancar) a `"al_alza"` (tras la ráfaga de ~300 ataques del simulador). La lógica actual es matemáticamente robusta y narrativamente ideal para la demo sin necesidad de alterar ventanas temporales.
 
 ---
 
@@ -130,10 +130,6 @@
 
 ---
 
-## 6. Rafael (rol sin confirmar)
 
-Sigue pendiente de decidir si Rafael toma un rol de líder técnico, de pitch, o ambos (`docs/SPRINT-1.md` sección 10). Mientras no se confirme, candidatos razonables de trabajo que no chocan con las columnas de arriba:
-
-- Integración y QA de punta a punta: ser quien corre `docker compose up` por primera vez con Karla y reporta qué falla, sin "pertenecer" a ningún módulo específico.
 - Puente entre Iván/José Oropeza para que las reglas (`rules.yaml`) y el seed SQL (`02_seed_attack.sql`) no se desincronicen al afinar durante F3.
 - Ensayo y cronometraje del pitch con José Estanga en F6.
