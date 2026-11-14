@@ -28,14 +28,20 @@ INSERT INTO rule (id, category, severity, technique_id, description, pattern) VA
     ('CNT-SQLI-002',      'sqli',       'critica', 'T1190',     'UNION SELECT típico de extracción de datos vía SQLi', '(?i)union(\s|%20)+select'),
     ('CNT-SQLI-003',      'sqli',       'alta',    'T1190',     'Comentario SQL para truncar la consulta original (-- o #)', '(?i)(--|#)\s*$|/\*.*\*/'),
     ('CNT-SQLI-004',      'sqli',       'alta',    'T1190',     'Funciones de retardo usadas para SQLi a ciegas (SLEEP/BENCHMARK)', '(?i)(sleep|benchmark)\s*\('),
+    ('CNT-SQLI-005',      'sqli',       'alta',    'T1190',     'Comandos destructivos o de manipulación DDL/DML en inyección SQL', '(?i)(;\s*)?(drop\s+table|delete\s+from|insert\s+into|update\s+\w+\s+set)\b'),
     ('CNT-XSS-001',       'xss',        'alta',    'T1059.007', 'Etiqueta <script> inyectada en parámetros o cuerpo', '(?i)<script[^>]*>'),
     ('CNT-XSS-002',       'xss',        'media',   'T1059.007', 'Manejador de evento inline típico de XSS (onerror=, onload=)', '(?i)on(error|load|click|mouseover)\s*='),
     ('CNT-XSS-003',       'xss',        'media',   'T1059.007', 'Esquema javascript: usado para ejecutar script desde un atributo', '(?i)javascript\s*:'),
+    ('CNT-XSS-004',       'xss',        'alta',    'T1059.007', 'Inyección de elementos DOM para XSS (svg, iframe, img, body)', '(?i)<(iframe|svg|body|object|embed|style|meta)\b[^>]*>'),
     ('CNT-TRAVERSAL-001', 'traversal',  'critica', 'T1083',     'Secuencia ../ para escapar del directorio base (path traversal / LFI)', '(\.\./|\.\.%2f|%2e%2e/){2,}'),
     ('CNT-TRAVERSAL-002', 'traversal',  'alta',    'T1083',     'Lectura directa de archivos sensibles del sistema', '(?i)(etc/passwd|boot\.ini|win\.ini|proc/self/environ)'),
+    ('CNT-TRAVERSAL-003', 'traversal',  'alta',    'T1083',     'Inclusión de archivos mediante esquemas de wrapper (php://, file://, data://)', '(?i)(php|file|data|zip|phar)://'),
     ('CNT-CMDI-001',      'cmdi',       'critica', 'T1059',     'Encadenado de comandos de shell (;, |, &&) junto a binarios típicos', '(?i)(;|\||&&)\s*(cat|ls|whoami|id|curl|wget|nc|bash|sh)\b'),
     ('CNT-CMDI-002',      'cmdi',       'alta',    'T1059',     'Sustitución de comandos vía backticks o $()', '`[^`]+`|\$\([^)]+\)'),
+    ('CNT-CMDI-003',      'cmdi',       'critica', 'T1059',     'Pipes a intérpretes de comandos o redirección de descriptores de red', '(?i)(\|\s*(bash|sh|zsh|dash)|>\s*/dev/(tcp|udp)|nc\s+-[el])\b'),
     ('CNT-SCANNER-001',   'scanner',    'baja',    'T1595',     'User-Agent de herramientas automatizadas de escaneo', '(?i)(sqlmap|nikto|nmap|masscan|acunetix|nessus)'),
     ('CNT-SCANNER-002',   'scanner',    'media',   'T1595.002', 'Sondeo de rutas administrativas o de configuración comunes', '(?i)/(\.git/|\.env|wp-admin|phpmyadmin|admin/config)'),
-    ('CNT-BRUTEFORCE-001','bruteforce', 'media',   'T1110',     'Intento de acceso a endpoint de login con credenciales por defecto', '(?i)(username|usuario)=admin.*(password|clave)=(admin|123456|root)')
+    ('CNT-SCANNER-003',   'scanner',    'media',   'T1595.002', 'Sondeo de copias de seguridad, archivos temporales o volcados sensibles', '(?i)\.(bak|old|backup|sql|tar\.gz|zip|swp|temp)(~|\b)'),
+    ('CNT-BRUTEFORCE-001','bruteforce', 'media',   'T1110',     'Intento de acceso a endpoint de login con credenciales por defecto', '(?i)(username|usuario)=admin.*(password|clave)=(admin|123456|root)'),
+    ('CNT-BRUTEFORCE-002','bruteforce', 'media',   'T1110',     'Intento masivo o patrón de diccionario en parámetros de clave', '(?i)(pass(word)?|pin|secret|token)=(''''|"|%27)?(1234|password|qwerty|toor|admin123|guest)\b')
 ON CONFLICT (id) DO NOTHING;
