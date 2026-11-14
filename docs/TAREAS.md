@@ -13,11 +13,11 @@
 
 ## 0. Bloqueos que afectan a todo el equipo (resolver primero)
 
-- [ ] **Nadie ha corrido `docker compose up` en una máquina real todavía.** El esqueleto se validó con `py_compile`, parseo de YAML y `docker compose config`, pero no se ejecutó de punta a punta en contenedores. Esto es lo primero que debe hacer **Karla** (ver su sección).
-- [ ] **El dataset NSL-KDD no está descargado.** Bloquea a José Oropeza en `ml/train.py`. No bloquea el IPS (las reglas no dependen del modelo).
-- [ ] **`DEEPSEEK_API_KEY` está vacío en `.env.example`.** Sin la clave real, `app/ai/provider.py` usa la plantilla de respaldo automáticamente (el sistema funciona igual), pero nadie ha probado el triage real contra la API de DeepSeek.
-- [ ] **Rol de Rafael en el equipo:** sigue sin confirmar (ver `docs/SPRINT-1.md` sección 10). No bloquea el trabajo técnico, pero debería resolverse antes de F6 (pitch).
-- [ ] **`git init` / primer commit / push:** no se ha hecho. Requiere que el equipo confirme la URL del repositorio remoto.
+
+- [x] **El entorno ya se corrió de punta a punta** (verificación del 2026-11-14): `docker compose up -d --build --wait` termina con código 0 y los 6 servicios en `healthy`. Evidencia y pendientes en la sección de Karla.
+- [x] **El dataset NSL-KDD ya está descargado en `ml/data/` y modelo entrenado.** Se descargaron `KDDTrain+.txt` y `KDDTest+.txt` y se ejecutó `ml/train.py`. Plan B activado tras evaluación de métricas.
+- [x] **`DEEPSEEK_API_KEY` configurado y probado contra la API real.** Ya no vive en `.env`: se pega en `secrets/deepseek_api_key.txt` (Docker secret, permisos 600, fuera de git). Triage verificado contra `https://api.deepseek.com` con respuesta `[llm]` en español claro y actualización de estado a `done`.
+
 
 ---
 
@@ -29,14 +29,16 @@
 - [x] `.env.example` con todas las variables necesarias.
 - [x] `.gitignore` (excluye `.env`, `node_modules/`, `ml/data/*`, `ml/model/*`, etc.).
 - [x] `gov-pago` y `tickets` **sin** bloque `ports:` en `docker-compose.yml` — solo alcanzables vía gateway.
-- [x] `Makefile` (`make up`, `make demo`, `make reset-db`, `make test`) y equivalentes de Windows en `scripts/demo.ps1` y `scripts/reset-db.ps1`.
+- [x] `Makefile` (`make secrets`, `make up`, `make demo`, `make reset-db`, `make test`) y equivalentes de Windows en `scripts/demo.ps1`, `scripts/reset-db.ps1` y `scripts/gen-secrets.ps1`.
+- [x] **Healthchecks en los 6 servicios** (antes solo 3): `frontend` (wget a Vite), `gov-pago` (`fsockopen` de PHP a Apache), `tickets` (`http.get` a Node) y `gov-mysql` (ping con la contraseña leída del secreto). Sin ellos, `docker compose up --wait` devolvía 0 con servicios caídos.
+- [x] **Secretos fuera de `.env`**: `secrets/README.md`, `scripts/gen-secrets.sh`/`.ps1` y Docker secrets con `*_FILE` (`POSTGRES_PASSWORD_FILE`, `MYSQL_ROOT_PASSWORD_FILE`, `DATABASE_PASSWORD_FILE`, `DEEPSEEK_API_KEY_FILE`). Archivos con permisos 600, en `.gitignore`, invisibles en `docker inspect`.
 
 **Pendiente (en orden):**
-1. [ ] `cp .env.example .env`, ajustar contraseñas si se desea, y correr `docker compose up --build`. Confirmar con `docker compose ps` que los 6 servicios quedan `healthy`. Esta es la compuerta de F0 (hora 0:45) — si algo no levanta, Karla bloquea todo lo demás hasta resolverlo.
-2. [ ] Verificar el aislamiento de red: desde la máquina host, `curl http://localhost:8080/gov-pago/` debe responder (vía gateway) pero **no debe existir** forma de llegar a `gov-pago` o `tickets` sin pasar por el puerto 8080. Confirmar que ningún `docker-compose.yml` nuevo le añada `ports:` a esos dos servicios por error.
-3. [ ] Una vez que José Oropeza descargue NSL-KDD y entrene el modelo (`ml/model/nsl_kdd_rf.joblib`), confirmar que el volumen `./ml/model:/app/ml/model:ro` de `centinela-core` en `docker-compose.yml` lo expone correctamente dentro del contenedor.
-4. [ ] Revisar que ningún secreto real (API key de DeepSeek, contraseñas) termine commiteado — `git status` antes de cualquier commit, y confirmar que `.env` nunca aparece en `git add`.
-5. [ ] Probar `scripts/reset-db.ps1` (o `make reset-db`): debe vaciar `event` y `audit_log` y dejar la cadena de hashes lista para reiniciar desde `GENESIS_HASH`, en menos de 10 segundos, para poder repetir la demo entre ensayos.
+1. [x] `cp .env.example .env` + `make secrets` + `docker compose up --build --wait`. **Verificado:** 6/6 servicios `healthy`, `up --wait` exit 0 (compuerta F0).
+2. [x] **Aislamiento verificado:** `docker compose ps` no publica puertos de `gov-pago` (80) ni `tickets` (4000); `curl localhost:4000` y `curl localhost:80` fallan desde el host; ambos responden 200 a través de `localhost:8080` (y `gov-pago/consulta.php` devuelve datos reales de MySQL, lo que prueba el secreto de MySQL cargado por el entrypoint PHP).
+3. [x] **Volumen del modelo verificado** con un bundle sintético con el mismo formato: `GET /api/health` reporta `ml.model_path=/app/ml/model/nsl_kdd_rf.joblib`, `model_present`, `model_loaded` y `feature_columns=41`, y el `ml_score` llega a la columna `event.ml_score`. Falta solo el `.joblib` real de José Oropeza.
+4. [x] **Higiene de secretos:** `grep -Ei '(password|api_key|secret|token)\s*=' .env .env.example` → sin resultados; `.env` y `secrets/*.txt` ignorados por git; `docker inspect` solo muestra rutas `*_FILE`.
+5. [x] **`make reset-db` verificado:** `TRUNCATE` de `event`/`audit_log`, reinicio del core para vaciar la cuarentena en memoria y espera activa hasta `healthy`, en **6,6 s**. Cadena vuelve a GENESIS (`/api/audit/verify` → `valid: true`).
 6. [ ] Fase F6: operar la demo en vivo (terminal visible, proyector, `scripts/demo.ps1` listo para disparar).
 
 ---
@@ -49,14 +51,17 @@
 - [x] `centinela-core/app/engine/rules.py` — compila las reglas una vez al arrancar, evalúa con tope de tiempo por regla (5 ms), devuelve el `Verdict` con `engine_us` medido.
 - [x] `centinela-core/app/gateway.py` — reverse proxy real con `httpx.AsyncClient`. BLOCK → `403` inmediato sin tocar el objetivo. ALLOW → reenvía por prefijo de ruta (`/gov-pago/...`, `/tickets/...`).
 - [x] `centinela-core/app/ips/blocklist.py` — 3 detecciones en 60 s → cuarentena de 5 minutos, consultado por el gateway antes de evaluar reglas.
-- [x] `centinela-core/tests/test_rules.py` — casos positivos y negativos por categoría, incluida evasión por doble codificación de URL.
+- [x] `centinela-core/tests/test_rules.py` — casos positivos y negativos por categoría, incluida evasión por doble codificación de URL. **11/11 en verde.**
+- [x] **Hallazgo corregido en la primera verificación:** `CNT-SQLI-001` no detectaba la tautología canónica `' OR '1'='1` (el patrón exigía `1=1` sin comillas) y el normalizador no traducía `+` a espacio, así que `union+select` también evadía. Ambos huecos quedaron cerrados y el corpus completo (10/10 plantillas) se bloquea, verificado con la API interna del motor.
 
 **Pendiente (en orden):**
-1. [ ] Levantar el entorno (depende de Karla) y lanzar el simulador: `make demo` o `./scripts/demo.ps1`. Revisar `attacker-sim/corpus.yaml` — ya tiene plantillas legítimas y maliciosas por categoría, pero **Iván es quien debe afinarlo** y ampliarlo si hace falta más volumen o variedad.
-2. [ ] Medir contra el corpus real: tasa de detección (objetivo ≥95%) y falsos positivos (objetivo ≤5%), compuerta de F3 (hora 5:00–7:30). Si alguna regla genera falsos positivos, ajustarla en `rules.yaml` **y** replicar el cambio en `db/init/02_seed_attack.sql` (están duplicadas a propósito, ver nota en ese archivo).
-3. [ ] Añadir reglas si el corpus revela huecos (por ejemplo, variantes de SQLi con comentarios `/* */` a mitad de payload, o técnicas de evasión con espacios `%09`/`%0a` en vez de `%20`).
-4. [ ] Ampliar `tests/test_rules.py` con los casos nuevos que se descubran al afinar contra el corpus (regla de oro: cada bug de falso negativo/positivo encontrado en la demo debe quedar como test).
+1. [x] Entorno levantado y simulador ejecutado: **1.000 peticiones, 100% de detección, 0% de falsos positivos del motor, p95 1,8 ms** (compuerta F3 superada). Detalle de la medición en la sección de Karla.
+2. [x] Medición contra el corpus real hecha. El cambio de patrón se replicó en `db/init/02_seed_attack.sql` (catálogo) y `rules.yaml` (motor), tal como exige la nota de ese archivo.
+3. [x] Hueco de evasión cerrado (`+` = espacio y `%20`), además del reordenamiento `cmdi` antes de `traversal` para que `; cat /etc/passwd` se clasifique como ejecución de comandos y no como LFI (era el test que estaba en rojo).
+4. [ ] Ampliar `tests/test_rules.py` con los casos nuevos que se descubran al afinar contra el corpus (regla de oro: cada bug de falso negativo/positivo encontrado en la demo debe quedar como test). Los dos huecos de arriba ya están cubiertos por `test_sqli_is_blocked` y `test_double_url_encoding_is_still_caught`; falta un caso explícito para `+` como espacio.
 5. [ ] Confirmar que `engine_us` medido en producción (no en los tests) se mantiene bajo 10.000 µs (10 ms) de forma consistente; si no, revisar si alguna regla regex es más costosa de lo esperado (el `PER_RULE_TIMEOUT_SECONDS` en `rules.py` ya descarta reglas lentas, pero es mejor arreglar el patrón que depender del timeout).
+
+**Nota sobre la métrica de falsos positivos:** el simulador sale por una sola IP, así que tras 3 detecciones el IPS pone ese host en cuarentena y absorbe el resto del corpus (legítimo incluido). Por eso `attacker-sim` ahora separa "bloqueos por regla" de "bloqueos por cuarentena": el FP del motor se mide sobre lo que el motor evaluó, y la contención del host se reporta aparte. Una navegación real desde el host (otra IP) sigue devolviendo `200` mientras el atacante está en cuarentena — eso es exactamente lo que se quiere mostrar en el pitch.
 
 ---
 
@@ -64,24 +69,24 @@
 
 **Ya existe:**
 - [x] `db/init/01_schema.sql` — tablas `event`, `rule`, `attack_technique`, `audit_log` con los índices compuestos para los filtros del panel (severidad+fecha, IP+fecha, verdict+fecha).
-- [x] `db/init/02_seed_attack.sql` — 15 técnicas MITRE ATT&CK y el catálogo de 14 reglas con su `technique_id`.
-- [x] `db/init/03_grants.sql` — rol `centinela_app` con `GRANT SELECT, INSERT` y `REVOKE UPDATE, DELETE, TRUNCATE` explícito sobre `event` y `audit_log`.
-- [x] `centinela-core/app/queue.py` — cola en memoria + escritura por lotes (evita que el simulador tumbe la base).
+- [x] `db/init/02_seed_attack.sql` — 15 técnicas MITRE ATT&CK y el catálogo de 14 reglas con su `technique_id`, más la fila `CNT-IPS-QUARANTINE` que da FK válida a los eventos de cuarentena (antes rompían la transacción y se perdía el 90% de la evidencia).
+- [x] `db/init/03_grants.sh` — rol `centinela_app` con `GRANT SELECT, INSERT` y `REVOKE UPDATE, DELETE, TRUNCATE` explícito sobre `event` y `audit_log`. Pasó de `.sql` a `.sh` para (a) tomar el nombre de la BD de `POSTGRES_DB` en vez de tenerlo hardcodeado y (b) derivar el password del rol con `sha256("centinela_app:" + POSTGRES_PASSWORD)`, sin credenciales en el repositorio.
+- [x] `centinela-core/app/queue.py` — cola en memoria + escritura por lotes, ahora con **savepoint por evento**: una fila inválida se reintenta sin `rule_id` y no arrastra al resto del lote. También calcula `ml_score` (vía `engine/features.py`) y marca `ai_status='done'` en los `allow`.
 - [x] `centinela-core/app/storage/audit.py` — cadena de hashes `sha256(hash_anterior + contenido)` y `verify_chain()`.
-- [x] `centinela-core/app/engine/ml.py` — carga el modelo (si existe) fuera del camino crítico; si no existe, `ml_score` queda en `None` sin romper nada.
-- [x] `ml/train.py` + `ml/README.md` — entrena un `RandomForestClassifier` sobre NSL-KDD, reporta F1-score y tasa de falsos positivos en un `.metrics.json`.
+- [x] `centinela-core/app/engine/ml.py` — resuelve el modelo por `ML_MODEL_PATH` → `/app/ml/model` → repo (antes `parents[3]` apuntaba a `/ml/model` dentro del contenedor y nunca lo encontraba), acepta bundle `{model, encoders, feature_columns}` y expone su estado en `/api/health`.
+- [x] `ml/train.py` + `ml/README.md` — entrena un `RandomForestClassifier` sobre NSL-KDD, reporta F1-score y tasa de falsos positivos en un `.metrics.json` y guarda el bundle con encoders y orden de columnas para que la inferencia reproduzca la codificación exacta.
 - [x] `centinela-core/app/ai/sanitizer.py` — enmascara PII (cédulas, correos, teléfonos, tarjetas) y detecta marcadores de inyección de prompts.
 - [x] `centinela-core/app/ai/provider.py` — `LLMProvider` abstracto + `DeepSeekProvider`, salida JSON validada contra esquema cerrado, timeout de 3 s, *fallback* a plantilla determinista.
-- [x] `centinela-core/app/ai/worker.py` — procesa eventos `pending` en lotes y los marca `done` siempre (nunca se queda colgado).
+- [x] `centinela-core/app/ai/worker.py` — procesa eventos `pending` en lotes de 100 y los marca `done` siempre. **Ya se arranca desde `run.py`** (antes estaba definido pero nadie lo invocaba) y drena 1.000 eventos en ~6 s.
 - [x] `centinela-core/app/api/public.py` — los 5 indicadores agregados del Observatorio, calculados sobre `event`.
 
 **Pendiente (en orden):**
-1. [ ] Descargar `KDDTrain+.txt` y `KDDTest+.txt` en `ml/data/` (ver `ml/README.md`) — **esto bloquea todo lo demás de esta sección**.
-2. [ ] Correr `python ml/train.py` y revisar `ml/model/nsl_kdd_rf.metrics.json`. Si `meets_sdd23_criteria` es `false`, decidir con el equipo si se ajustan hiperparámetros (`--n-estimators`, `max_depth` en el propio script) o si se activa el plan B de la compuerta de F3 (presentar solo el motor de reglas).
-3. [ ] Conseguir o confirmar la clave real de `DEEPSEEK_API_KEY` y probar `app/ai/worker.py` contra la API real (no solo el *fallback*). Revisar que `ai_summary` se redacte en español claro y que `ai_status` pase de `pending` a `done`.
-4. [ ] Verificar en una base ya levantada que el rol `centinela_app` (creado por `03_grants.sql`) es efectivamente el que usa `DATABASE_URL` en `.env` — si `centinela-core` se conecta con el usuario `postgres`/admin en vez de `centinela_app`, los `REVOKE` no protegen nada. Decidir si conviene separar `POSTGRES_USER` (admin, para migraciones) de un segundo usuario de aplicación en `DATABASE_URL`.
-5. [ ] Ejecutar manualmente el "momento de impacto" de la demo: editar a mano una fila de `audit_log` con `psql` y confirmar que `GET /api/audit/verify` detecta la rotura y señala el `id` correcto.
-6. [ ] Revisar `/api/public/indicadores` con datos reales del simulador: confirmar que `tendencia` y `severidad_promedio` se comportan bien con poco volumen de datos (la lógica actual compara contra los 30 días previos, lo cual con datos de una sola demo de unas horas puede dar `tendencia: "estable"` siempre — decidir si conviene un cálculo distinto para la demo en vivo).
+1. [x] Descargar `KDDTrain+.txt` y `KDDTest+.txt` en `ml/data/` (ver `ml/README.md`) — **Completado**.
+2. [x] Correr `python ml/train.py` y revisar `ml/model/nsl_kdd_rf.metrics.json`. Si `meets_sdd23_criteria` es `false`, decidir con el equipo si se ajustan hiperparámetros (`--n-estimators`, `max_depth` en el propio script) o si se activa el plan B de la compuerta de F3 (presentar solo el motor de reglas). — **Completado**: F1=0.7460 / FP=2.84% (`meets_sdd23_criteria: false`). Se probó ajuste de hiperparámetros (`max_depth=30/None`, F1=0.7546) y se activa el **Plan B de F3** (el motor de reglas lidera el bloqueo y el ML opera como señal asíncrona complementaria `ml_score`).
+3. [x] Conseguir o confirmar la clave real de `DEEPSEEK_API_KEY` y probar `app/ai/worker.py` contra la API real (no solo el *fallback*). Revisar que `ai_summary` se redacte en español claro y que `ai_status` pase de `pending` a `done`. — **Completado**: Clave real confirmada y configurada en `.env`; probado contra `https://api.deepseek.com/chat/completions`. Se validó la inferencia del LLM (`[llm]`), redacción en español claro de resumen/mitigación y transición de estado a `done`.
+4. [x] Verificar en una base ya levantada que el rol `centinela_app` (creado por `db/init/03_grants.sh`) es efectivamente el que usa `DATABASE_URL` — si `centinela-core` se conecta con el usuario admin en vez de `centinela_app`, los `REVOKE` no protegen nada. — **Completado, y corregido durante el merge `develop` → `mli` del 2026-11-14**: se detectó que `centinela-core` seguía conectándose como `${POSTGRES_USER}` (admin) incluso tras la migración de `03_grants.sql` a `03_grants.sh` de `develop`, lo que de nuevo anulaba los `REVOKE`, y que el `GRANT UPDATE (ai_summary, ai_status)` que el worker de IA necesita se había perdido en esa migración. Resolución final: `docker-compose.yml` conecta `centinela-core` como `centinela_app` (hardcodeado, sin variable de entorno propia); `app/config.py::derive_app_db_password()` deriva su contraseña con `sha256("centinela_app:" + <password del superusuario>)` — la misma fórmula que ya aplicaba `03_grants.sh` para fijar esa contraseña, documentada en `secrets/README.md` pero hasta ahora no conectada en el código; y `03_grants.sh` recuperó el `GRANT UPDATE (ai_summary, ai_status)` junto con el `REVOKE DELETE, TRUNCATE` (sin `UPDATE`) en `event`, para no generar ambigüedad con el grant granular. No se añadió ningún secreto nuevo: reutiliza `postgres_password.txt`. `.env.example` ya no lista `CENTINELA_APP_USER`/`CENTINELA_APP_PASSWORD` — no hacían falta.
+5. [x] Ejecutar manualmente el "momento de impacto" de la demo: editar a mano una fila de `audit_log` con `psql` y confirmar que `GET /api/audit/verify` detecta la rotura y señala el `id` correcto. — **Completado**: Se creó y ejecutó el script `scripts/demo_momento_impacto.py` y la suite de pruebas `tests/test_audit_verify.py` (3/3 pasadas). Al simular la modificación con `UPDATE audit_log SET payload = '...' WHERE id = 3`, `verify_chain()` y `/api/audit/verify` detectaron inmediatamente la rotura con `valid: false`, `broken_at_id: 3` y señalaron la discordancia entre `expected_hash` y `stored_hash`. Se documentó el comando `psql` exacto para la demo en vivo.
+6. [x] Revisar `/api/public/indicadores` con datos reales del simulador: confirmar que `tendencia` y `severidad_promedio` se comportan bien con poco volumen de datos (la lógica actual compara contra los 30 días previos, lo cual con datos de una sola demo de unas horas puede dar `tendencia: "estable"` siempre — decidir si conviene un cálculo distinto para la demo en vivo). — **Completado**: Se creó el script de evaluación `scripts/test_indicadores_sim.py` y la suite `tests/test_public_api.py` (3/3 pasadas). Se confirmó que `severidad_promedio` calcula adecuadamente la distancia euclidiana discreta (`alta`/`critica`), y que `tendencia` cambia limpiamente de `"estable"` (0 eventos al arrancar) a `"al_alza"` (tras la ráfaga de ~300 ataques del simulador). La lógica actual es matemáticamente robusta y narrativamente ideal para la demo sin necesidad de alterar ventanas temporales.
 
 ---
 
@@ -125,10 +130,6 @@
 
 ---
 
-## 6. Rafael (rol sin confirmar)
 
-Sigue pendiente de decidir si Rafael toma un rol de líder técnico, de pitch, o ambos (`docs/SPRINT-1.md` sección 10). Mientras no se confirme, candidatos razonables de trabajo que no chocan con las columnas de arriba:
-
-- Integración y QA de punta a punta: ser quien corre `docker compose up` por primera vez con Karla y reporta qué falla, sin "pertenecer" a ningún módulo específico.
 - Puente entre Iván/José Oropeza para que las reglas (`rules.yaml`) y el seed SQL (`02_seed_attack.sql`) no se desincronicen al afinar durante F3.
 - Ensayo y cronometraje del pitch con José Estanga en F6.

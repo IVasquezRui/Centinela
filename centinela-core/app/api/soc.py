@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 
 from app.api.public import public_router
 from app.api.stream import stream_router
+from app.engine.ml import ml_scorer
 from app.ips.blocklist import blocklist
 from app.storage.audit import verify_chain
 from app.storage.db import async_session
@@ -39,6 +40,9 @@ async def health() -> dict:
         "status": "ok",
         "service": "centinela-core",
         "time": dt.datetime.now(dt.timezone.utc).isoformat(),
+        # Evidencia directa de la compuerta de F3: si el volumen del modelo está
+        # bien montado y el artefacto existe, aquí se ve sin bucear en logs.
+        "ml": ml_scorer.status(),
     }
 
 
