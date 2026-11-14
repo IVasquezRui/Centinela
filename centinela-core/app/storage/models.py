@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import BigInteger, DateTime, Float, Integer, String, Text
+from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -26,7 +26,7 @@ class Event(Base):
     path: Mapped[str] = mapped_column(Text)
     target: Mapped[str] = mapped_column(String(64))
     verdict: Mapped[str] = mapped_column(String(16))
-    rule_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    rule_id: Mapped[str | None] = mapped_column(String(32), ForeignKey("rule.id"), nullable=True)
     category: Mapped[str | None] = mapped_column(String(32), nullable=True)
     severity: Mapped[str | None] = mapped_column(String(16), nullable=True)
     technique_id: Mapped[str | None] = mapped_column(String(16), nullable=True)
@@ -43,7 +43,7 @@ class Rule(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     category: Mapped[str] = mapped_column(String(32))
     severity: Mapped[str] = mapped_column(String(16))
-    technique_id: Mapped[str] = mapped_column(String(16))
+    technique_id: Mapped[str] = mapped_column(String(16), ForeignKey("attack_technique.technique_id"))
     description: Mapped[str] = mapped_column(Text)
     pattern: Mapped[str] = mapped_column(Text)
 
