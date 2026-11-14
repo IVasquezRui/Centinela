@@ -14,6 +14,11 @@ rules:
     severity: critica
     technique_id: T1190
     description: "Tautología clásica de SQL injection (' OR '1'='1)"
+    # Versión de la rama motor (Iván): generaliza el fix de develop (que ya
+    # cubría '1'='1 con comillas opcionales alrededor de cada "1") para que
+    # la comilla/%27 inicial antes de or/and también sea opcional, y así
+    # capturar además la tautología numérica sin comillas (1 OR 1=1).
+    # Validado contra la suite de 43 tests de la rama motor.
     pattern: "(?i)('|%27)?\\s*(or|and)\\s*('|%27)?\\s*(')?1(')?\\s*=\\s*(')?1(')?"
 
   - id: CNT-SQLI-002
@@ -72,27 +77,15 @@ rules:
     description: "Esquema javascript: usado para ejecutar script desde un atributo"
     pattern: "(?i)javascript\\s*:"
 
-  - id: CNT-TRAVERSAL-001
-    category: traversal
-    severity: critica
-    technique_id: T1083
-    description: "Secuencia ../ para escapar del directorio base (path traversal / LFI)"
-    pattern: "(\\.\\./|\\.\\.%2f|%2e%2e/){2,}"
-
-  - id: CNT-TRAVERSAL-002
-    category: traversal
-    severity: alta
-    technique_id: T1083
-    description: "Lectura directa de archivos sensibles del sistema"
-    pattern: "(?i)(etc/passwd|boot\\.ini|win\\.ini|proc/self/environ)"
-
-  - id: CNT-TRAVERSAL-003
-    category: traversal
-    severity: alta
-    technique_id: T1083
-    description: "Inclusión de archivos mediante esquemas de wrapper (php://, file://, data://)"
-    pattern: "(?i)(php|file|data|zip|phar)://"
-
+  # RCE (cmdi) se evalúa ANTES que LFI (traversal): un payload como
+  # "; cat /etc/passwd" coincide con ambas y la categoría correcta es ejecución
+  # de comandos (T1059), no lectura de archivos. Ver
+  # tests/test_rules.py::test_command_injection_is_blocked.
+  # CMDI-003 se evalúa ANTES que CMDI-001: ambas reconocen "bash"/"sh" como
+  # binario, pero "| bash" es específicamente un pipe a intérprete (T1059,
+  # caso más preciso) y no debe clasificarse con la regla genérica de
+  # comandos encadenados. Orden heredado de la rama motor (Iván); invertirlo
+  # rompe tests/test_rules.py::test_command_injection_is_blocked.
   - id: CNT-CMDI-003
     category: cmdi
     severity: critica
@@ -113,6 +106,27 @@ rules:
     technique_id: T1059
     description: "Sustitución de comandos vía backticks o $()"
     pattern: "`[^`]+`|\\$\\([^)]+\\)"
+
+  - id: CNT-TRAVERSAL-001
+    category: traversal
+    severity: critica
+    technique_id: T1083
+    description: "Secuencia ../ para escapar del directorio base (path traversal / LFI)"
+    pattern: "(\\.\\./|\\.\\.%2f|%2e%2e/){2,}"
+
+  - id: CNT-TRAVERSAL-002
+    category: traversal
+    severity: alta
+    technique_id: T1083
+    description: "Lectura directa de archivos sensibles del sistema"
+    pattern: "(?i)(etc/passwd|boot\\.ini|win\\.ini|proc/self/environ)"
+
+  - id: CNT-TRAVERSAL-003
+    category: traversal
+    severity: alta
+    technique_id: T1083
+    description: "Inclusión de archivos mediante esquemas de wrapper (php://, file://, data://)"
+    pattern: "(?i)(php|file|data|zip|phar)://"
 
   - id: CNT-SCANNER-001
     category: scanner

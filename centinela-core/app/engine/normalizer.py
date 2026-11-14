@@ -23,9 +23,16 @@ class NormalizedRequest:
     def __post_init__(self) -> None:
         # Todo lo que puede llevar un payload inyectado, concatenado en un
         # solo texto para que las reglas solo necesiten mirar un lugar.
-        self.inspectable_text = "\n".join(
-            [self.path, self.query_string, self.body]
+        #
+        # Se incluye además una variante con '+' convertido en espacio: en
+        # application/x-www-form-urlencoded '+' significa espacio, pero
+        # urllib.unquote() no lo traduce. Sin esto, "1+union+select+..." esquiva
+        # cualquier regla que busque espacios (evasión trivial de WAF).
+        parts = [self.path, self.query_string, self.body]
+        parts.extend(
+            variant.replace("+", " ") for variant in (self.query_string, self.body)
         )
+        self.inspectable_text = "\n".join(parts)
 
 
 def _decode_fully(value: str, max_passes: int = 3) -> str:

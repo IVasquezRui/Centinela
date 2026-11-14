@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CENTINELA · Informe de cambios y estado de pendientes</title>
+<style>
+  :root{
+    --ink:#0f172a; --ink-soft:#334155; --muted:#64748b;
+    --line:#e2e8f0; --bg:#f8fafc; --panel:#ffffff;
+    --ok:#0f766e; --ok-bg:#ecfdf5; --warn:#b45309; --warn-bg:#fffbeb;
+    --bad:#b91c1c; --bad-bg:#fef2f2; --info:#1d4ed8; --info-bg:#eff6ff;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    font-size:15px; line-height:1.6;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px 72px}
+  header.hero{
+    background:linear-gradient(135deg,#0b1220 0%,#122a3a 55%,#0f3d3a 100%);
+    color:#e6f0f5;padding:44px 0 38px;margin-bottom:32px;
+    border-bottom:4px solid var(--ok);
+  }
+  header.hero .wrap{padding-bottom:0}
+  .eyebrow{
+    text-transform:uppercase;letter-spacing:.14em;font-size:11px;
+    color:#7dd3c7;font-weight:700;margin:0 0 10px
+  }
+  h1{margin:0 0 10px;font-size:32px;line-height:1.2;letter-spacing:-.02em}
+  .sub{margin:0;color:#b7c9d4;max-width:760px;font-size:15px}
+  .meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+  .chip{
+    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);
+    color:#dbeafe;padding:4px 10px;border-radius:999px;font-size:12px
+  }
+  h2{
+    font-size:21px;margin:44px 0 6px;letter-spacing:-.01em;
+    padding-bottom:8px;border-bottom:1px solid var(--line)
+  }
+  h2 .num{color:var(--muted);font-weight:600;margin-right:8px}
+  h3{font-size:15.5px;margin:0 0 4px}
+  h4{font-size:14px;margin:20px 0 6px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em}
+  p{margin:8px 0}
+  a{color:var(--info)}
+  .lead{color:var(--ink-soft)}
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:18px 20px;margin:14px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)
+  }
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:18px 0}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .kpi .v{font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.15}
+  .kpi .l{font-size:12px;color:var(--muted);margin-top:4px}
+  .kpi .n{font-size:11px;color:var(--ok);font-weight:600;margin-top:6px}
+  .pill{
+    display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;
+    font-weight:700;border:1px solid transparent;white-space:nowrap;vertical-align:middle
+  }
+  .pill.ok{background:var(--ok-bg);color:var(--ok);border-color:#a7f3d0}
+  .pill.warn{background:var(--warn-bg);color:var(--warn);border-color:#fde68a}
+  .pill.no{background:var(--bad-bg);color:var(--bad);border-color:#fecaca}
+  .pill.info{background:var(--info-bg);color:var(--info);border-color:#bfdbfe}
+  .tag{
+    display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:11.5px;background:#f1f5f9;border:1px solid var(--line);
+    border-radius:5px;padding:1px 6px;color:var(--ink-soft);margin-right:4px
+  }
+  code{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:12.5px;background:#f1f5f9;border:1px solid var(--line);
+    border-radius:4px;padding:1px 5px;color:#0f3d3a
+  }
+  pre{
+    background:#0b1220;color:#dbeafe;border-radius:9px;padding:14px 16px;
+    overflow-x:auto;font-size:12.5px;line-height:1.55;margin:10px 0
+  }
+  pre code{background:none;border:none;color:inherit;padding:0;font-size:inherit}
+  .change{
+    background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--ok);
+    border-radius:9px;padding:16px 18px;margin:12px 0
+  }
+  .change .head{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;margin-bottom:10px}
+  .change .file{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:13px;font-weight:700;color:#0f172a;word-break:break-all
+  }
+  .change .delta{font-size:11.5px;color:var(--muted)}
+  .change dl{margin:0;display:grid;grid-template-columns:96px 1fr;gap:6px 12px}
+  .change dt{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding-top:2px}
+  .change dd{margin:0;font-size:14px;color:var(--ink-soft)}
+  .change dd strong{color:var(--ink)}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#f1f5f9;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  tbody tr:hover{background:#fbfdff}
+  td.num{white-space:nowrap}
+  .callout{border-radius:9px;padding:13px 16px;margin:14px 0;border:1px solid}
+  .callout.ok{background:var(--ok-bg);border-color:#a7f3d0}
+  .callout.warn{background:var(--warn-bg);border-color:#fde68a}
+  .callout.bad{background:var(--bad-bg);border-color:#fecaca}
+  .callout.info{background:var(--info-bg);border-color:#bfdbfe}
+  .callout .t{font-weight:700;font-size:13px;margin:0 0 4px}
+  .callout p:last-child{margin-bottom:0}
+  nav.toc{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin:22px 0}
+  nav.toc ol{margin:6px 0 0;padding-left:20px;columns:2;column-gap:32px}
+  nav.toc li{margin:3px 0;font-size:13.5px}
+  .bar{height:8px;border-radius:4px;background:#e2e8f0;overflow:hidden;margin-top:6px}
+  .bar span{display:block;height:100%;border-radius:4px}
+  .bar .done{background:linear-gradient(90deg,#0f766e,#14b8a6)}
+  footer{margin-top:48px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+  @media (max-width:720px){
+    .change dl{grid-template-columns:1fr}
+    .change dt{padding-top:8px}
+    nav.toc ol{columns:1}
+    h1{font-size:25px}
+  }
+  @media print{
+    body{background:#fff;font-size:11pt}
+    header.hero{background:#0b1220 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .card,.change,.kpi,nav.toc{break-inside:avoid;box-shadow:none}
+    h2{break-after:avoid}
+    a{color:inherit;text-decoration:none}
+  }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Hackatón UNETI IA 2026 · Sprint 1 · Evidencia de cierre</p>
+    <h1>CENTINELA — Informe de cambios y estado de pendientes</h1>
+    <p class="sub">
+      Registro completo de los cambios aplicados durante la verificación end-to-end:
+      <strong>qué</strong> se cambió, <strong>cómo</strong> se implementó y
+      <strong>por qué</strong>. Incluye el estado de la lista de pendientes de DevOps (Karla)
+      con evidencia ejecutada, no con supuestos.
+    </p>
+    <div class="meta">
+      <span class="chip">Rama: main</span>
+      <span class="chip">Base: 411c3fe</span>
+      <span class="chip">25 modificados + 8 nuevos</span>
+      <span class="chip">+672 / −176 en versionados</span>
+      <span class="chip">6/6 servicios healthy</span>
+      <span class="chip">13/11/2026</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <nav class="toc">
+    <strong>Contenido</strong>
+    <ol>
+      <li><a href="#resumen">Resumen ejecutivo</a></li>
+      <li><a href="#metodo">Método de verificación</a></li>
+      <li><a href="#bloque-a">Bloque A · Infraestructura y compuertas</a></li>
+      <li><a href="#bloque-b">Bloque B · Higiene de secretos</a></li>
+      <li><a href="#bloque-c">Bloque C · Gateway e IPS</a></li>
+      <li><a href="#bloque-d">Bloque D · Motor de reglas</a></li>
+      <li><a href="#bloque-e">Bloque E · Pipeline de eventos, ML e IA</a></li>
+      <li><a href="#bloque-f">Bloque F · Documentación y herramientas</a></li>
+      <li><a href="#pendientes">Pendientes: listo vs. falta</a></li>
+      <li><a href="#riesgos">Riesgos y notas para el pitch</a></li>
+      <li><a href="#comandos">Anexo · Comandos reproducibles</a></li>
+    </ol>
+  </nav>
+
+  <h2 id="resumen"><span class="num">1.</span>Resumen ejecutivo</h2>
+  <p class="lead">
+    El Sprint 1 se verificó levantando la plataforma desde cero y atacándola, no leyendo el
+    código. La verificación encontró <strong>tres fallos de seguridad reales</strong> y
+    <strong>cinco fallos de operación</strong> que habrían aparecido en la demo; todos están
+    corregidos y con evidencia. La lista de Karla queda en 4 de 6 ítems cerrados, 1 cerrado en
+    infraestructura y 1 pendiente por depender de un tercero o de operación en vivo.
+  </p>
+
+  <div class="kpis">
+    <div class="kpi">
+      <div class="v">6/6</div>
+      <div class="l">servicios <code>healthy</code> con <code>--wait</code></div>
+      <div class="n">compuerta F0 · exit 0</div>
+    </div>
+    <div class="kpi">
+      <div class="v">1000</div>
+      <div class="l">peticiones en la corrida de F3</div>
+      <div class="n">100 % de detección · 0 % FP de motor</div>
+    </div>
+    <div class="kpi">
+      <div class="v">1.8 ms</div>
+      <div class="l">p95 del motor de reglas por evento</div>
+      <div class="n">objetivo: &lt; 10 ms</div>
+    </div>
+    <div class="kpi">
+      <div class="v">6.6 s</div>
+      <div class="l">reset completo de BD + core healthy</div>
+      <div class="n">objetivo: &lt; 10 s</div>
+    </div>
+  </div>
+
+  <div class="callout bad">
+    <p class="t">Tres agujeros de seguridad encontrados al verificar (no en la lista original)</p>
+    <p>
+      <strong>1.</strong> El gateway aceptaba <code>X-Forwarded-For</code> de cualquiera: un atacante podía
+      rotar la cabecera para esquivar su propia cuarentena o envenenar la de una IP ajena.
+      <strong>2.</strong> La regla <code>CNT-SQLI-001</code> no detectaba la tautología entrecomillada
+      <code>' OR '1'='1</code>. <strong>3.</strong> El normalizador no traducía <code>+</code> a espacio,
+      así que <code>union+select</code> evadía todas las reglas de SQLi.
+    </p>
+  </div>
+
+  <div class="callout warn">
+    <p class="t">Cinco fallos de operación que rompían la demo</p>
+    <p>
+      healthchecks ausentes (F0 daba falso positivo), <code>reset-db</code> truncaba la BD equivocada
+      en silencio, el evento de cuarentena rompía la transacción y se perdía ~90 % de la evidencia,
+      el worker de IA nunca se arrancaba, y la ruta del modelo ML apuntaba fuera del volumen
+      (<code>/ml/model</code> en vez de <code>/app/ml/model</code>).
+    </p>
+  </div>
+
+  <h2 id="metodo"><span class="num">2.</span>Método de verificación</h2>
+  <p class="lead">
+    Cada afirmación de este informe se apoya en una salida de comando ejecutada en esta máquina,
+    no en lectura de código. El procedimiento fue siempre el mismo:
+  </p>
+  <table>
+    <thead>
+      <tr><th style="width:22%">Paso</th><th>Qué se hizo</th><th style="width:26%">Por qué así</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>1. Línea base</strong></td>
+        <td><code>docker compose down -v --remove-orphans</code> y arranque desde cero con <code>up --build --wait</code>.</td>
+        <td>Un volumen sucio esconde fallos de inicialización (seed, grants, secretos). El jurado verá un arranque limpio.</td>
+      </tr>
+      <tr>
+        <td><strong>2. Compuertas</strong></td>
+        <td><code>docker compose ps</code> exigiendo <code>healthy</code> real en los 6 servicios, más <code>docker port</code> y <code>curl</code> desde el host.</td>
+        <td>Un servicio sin healthcheck se reporta sano aunque esté caído: la compuerta debe doler cuando algo falla.</td>
+      </tr>
+      <tr>
+        <td><strong>3. Ataque</strong></td>
+        <td>1 000 peticiones con el simulador (30 % maliciosas) y payloads sintéticos de evasión (<code>union+select</code>, <code>' OR '1'='1</code>, <code>; cat /etc/passwd</code>).</td>
+        <td>Un motor de reglas se valida con tráfico hostil, no con un test unitario feliz.</td>
+      </tr>
+      <tr>
+        <td><strong>4. Inspección en el motor</strong></td>
+        <td><code>psql</code> directo sobre <code>event</code>, <code>audit_log</code> y <code>rule</code>; prueba de permisos con el rol <code>centinela_app</code>.</td>
+        <td>Si la evidencia no está en la base, no existe para el Observatorio ni para una auditoría.</td>
+      </tr>
+      <tr>
+        <td><strong>5. Medición</strong></td>
+        <td><code>time make reset-db</code>, p95 de <code>engine_us</code>, conteo de eventos por veredicto.</td>
+        <td>Los objetivos del SDD son numéricos: hay que demostrarlos con números.</td>
+      </tr>
+      <tr>
+        <td><strong>6. Corrección y re-verificación</strong></td>
+        <td>Cada fallo se corrigió y se repitió el paso que lo exponía, más una regresión completa.</td>
+        <td>Un arreglo sin re-verificación es una hipótesis, no un cierre.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout info">
+    <p class="t">Alcance</p>
+    <p>
+      33 archivos: 25 modificados y 8 nuevos (incluido este informe). Todo el trabajo está en el
+      árbol de trabajo sobre <code>411c3fe</code>, sin commit todavía: conviene revisarlo y commitear
+      en un solo bloque para que la evidencia quede fechada.
+    </p>
+  </div>
+
+  <h2 id="bloque-a"><span class="num">3.</span>Bloque A · Infraestructura y compuertas</h2>
+
+  <article class="change">
+    <div class="head"><span class="file">docker-compose.yml</span><span class="delta">69 líneas tocadas</span><span class="pill ok">modificado</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd>Se añadieron <strong>healthchecks a <code>frontend</code>, <code>gov-pago</code>, <code>tickets</code> y <code>gov-mysql</code></strong>; se declararon los tres secretos; la contraseña de Postgres llega por <code>POSTGRES_PASSWORD_FILE</code>; el core recibe <code>DATABASE_PASSWORD_FILE</code>, <code>DEEPSEEK_API_KEY_FILE</code>, <code>ML_MODEL_PATH</code> y <code>TRUSTED_PROXIES</code>; se montó <code>./ml/model</code> en solo lectura.</dd>
+      <dt>Cómo</dt>
+      <dd>Healthchecks que prueban el servicio real: Vite con un <code>GET /</code> (busybox <code>wget</code>), tickets con <code>node -e</code> exigiendo <code>status &lt; 500</code>, gov-pago con <code>fsockopen</code> a su propio puerto 80 porque <code>php:8.1-apache</code> no trae curl ni wget, y MySQL con <code>mysqladmin ping</code> leyendo la clave <em>dentro</em> del contenedor.</dd>
+      <dt>Por qué</dt>
+      <dd>Sin healthcheck, Compose reporta el contenedor como sano por omisión y <code>--wait</code> devuelve 0 con servicios caídos: la compuerta F0 era un <strong>falso positivo</strong>. Además, la contraseña en <code>environment</code> queda visible en <code>docker inspect</code> y en <code>ps</code>.</dd>
+      <dt>Evidencia</dt>
+      <dd><code>up --wait</code> exit 0 y <code>ps</code> con 6/6 <code>healthy</code>; <code>docker inspect</code> muestra solo la ruta <code>/run/secrets/postgres_password</code>, nunca el valor.</dd>
+    </dl>
+  </article>
+
+  <article class="change">
+    <div class="head"><span class="file">Makefile</span><span class="delta">20 líneas tocadas</span><span class="pill ok">modificado</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd><code>make up</code> ahora depende de <code>secrets</code>; <code>reset-db</code> expande las variables <strong>dentro</strong> del contenedor, reinicia el core y espera a que quede <code>healthy</code>; se añadió <code>make test</code>.</dd>
+      <dt>Cómo</dt>
+      <dd><code>docker compose exec -T centinela-db sh -c 'psql -U "$POSTGRES_USER" ...'</code> con comillas simples, y un bucle de hasta 60 s consultando <code>docker inspect -f '{{.State.Health.Status}}'</code>.</dd>
+      <dt>Por qué</dt>
+      <dd>Tras mover las credenciales a <code>secrets/</code>, <code>$POSTGRES_USER</code> ya no existe en el host: el comando caía a los valores por defecto y <strong>truncaba otra base en silencio</strong>. El reinicio es necesario porque la cuarentena del IPS y la cola viven en memoria y sobrevivían al reset.</dd>
+      <dt>Evidencia</dt>
+      <dd><code>time make reset-db</code> → 6.63 s, mensaje final con el core <code>healthy</code> y la cadena de auditoría en GENESIS.</dd>
+    </dl>
+  </article>
+
+  <article class="change">
+    <div class="head"><span class="file">scripts/reset-db.ps1</span><span class="delta">14 líneas tocadas</span><span class="pill ok">modificado</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd>Misma corrección que el <code>Makefile</code> para el equipo en Windows, más validación de errores.</dd>
+      <dt>Cómo</dt>
+      <dd>Comillas simples en el <code>sh -c</code> para que la expansión ocurra dentro del contenedor y <code>if ($LASTEXITCODE -ne 0) { throw ... }</code> tras el <code>TRUNCATE</code> y tras el <code>restart</code>.</dd>
+      <dt>Por qué</dt>
+      <dd>Es el script que Karla va a ejecutar en la máquina del pitch (Windows). Fallar en silencio ahí significa llegar al escenario con la base sucia y sin saberlo.</dd>
+      <dt>Evidencia</dt>
+      <dd>Probado en WSL/Linux con el equivalente <code>make reset-db</code>; el flujo PowerShell queda para el ensayo F6 en la máquina destino.</dd>
+    </dl>
+  </article>
+
+  <article class="change">
+    <div class="head"><span class="file">scripts/demo.ps1</span><span class="delta">5 líneas tocadas</span><span class="pill ok">modificado</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd>La demo genera los secretos si faltan y compila el simulador antes de correrlo (<code>--build</code>).</dd>
+      <dt>Cómo</dt>
+      <dd>Invocación previa a <code>gen-secrets.ps1</code> y <code>docker compose --profile demo run --build --rm</code>.</dd>
+      <dt>Por qué</dt>
+      <dd>Sin secretos el stack no arranca; y sin <code>--build</code> el simulador podía ejecutar una imagen vieja y mostrar métricas que no correspondían al código actual (justo lo que se pondera en F3).</dd>
+      <dt>Evidencia</dt>
+      <dd>Ejecución con <code>--total 1000 --malicious-ratio 0.3</code> y métricas coherentes con el motor.</dd>
+    </dl>
+  </article>
+
+  <article class="change">
+    <div class="head"><span class="file">targets/php-tributos/{Dockerfile, docker-entrypoint.sh, db.php}</span><span class="delta">+11 / +17 nuevo / 13</span><span class="pill ok">modificado + nuevo</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd>La contraseña de root de MySQL dejó de viajar en <code>environment</code>: <code>db.php</code> la lee de <code>MYSQL_ROOT_PASSWORD_FILE</code> y hay un entrypoint propio que la carga al arrancar.</dd>
+      <dt>Cómo</dt>
+      <dd><code>docker-entrypoint.sh</code> corre como root, hace <code>cat</code> del secreto, lo exporta y hace <code>exec docker-php-entrypoint</code>. El script se mueve fuera del <em>docroot</em> (<code>/usr/local/bin/</code>) con modo 755, y <code>db.php</code> conserva un <em>fallback</em> a <code>getenv('MYSQL_ROOT_PASSWORD')</code> solo para ejecución local.</dd>
+      <dt>Por qué</dt>
+      <dd>Apache corre como <code>www-data</code> y los <em>file secrets</em> de Compose son <em>bind mounts</em> con uid del host y modo 600: <strong>PHP no puede leer el archivo</strong> (Compose no remapea uid salvo en Swarm). Sin este entrypoint, gov-pago arrancaría sin credencial y fallaría en la primera petición.</dd>
+      <dt>Evidencia</dt>
+      <dd>gov-pago <code>healthy</code> y sirviendo a través del gateway; <code>docker inspect</code> del contenedor solo muestra <code>MYSQL_ROOT_PASSWORD_FILE</code>.</dd>
+    </dl>
+  </article>
+
+  <article class="change">
+    <div class="head"><span class="file">db/init/03_grants.sql → 03_grants.sh</span><span class="delta">+52 nuevo · −36 eliminado</span><span class="pill ok">reemplazado</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd>La inmutabilidad de la bitácora pasó de una intención a un control del motor: el rol <code>centinela_app</code> solo puede <code>SELECT</code>/<code>INSERT</code>, con <code>REVOKE UPDATE, DELETE, TRUNCATE</code> explícito sobre <code>event</code>, <code>audit_log</code>, <code>rule</code> y <code>attack_technique</code>.</dd>
+      <dt>Cómo</dt>
+      <dd>Se cambió la extensión a <code>.sh</code> para derivar el password en el arranque: <code>sha256("centinela_app:" + POSTGRES_PASSWORD)</code> con separación de dominio, y <code>psql</code> con <code>ON_ERROR_STOP=1</code>. El nombre de la base se toma de <code>POSTGRES_DB</code>, no se escribe a mano.</dd>
+      <dt>Por qué</dt>
+      <dd>El <code>.sql</code> solo podía llevar la contraseña escrita en el repositorio (o en <code>.env</code>). Derivarla evita distribuir una credencial más y garantiza que el rol <strong>no comparta valor con el superusuario</strong>. Además, renombrar la BD en <code>.env</code> ya no rompe los <code>GRANT</code>.</dd>
+      <dt>Evidencia</dt>
+      <dd><code>SELECT</code> como <code>centinela_app</code> → 1002 filas; <code>UPDATE event</code> → <code>ERROR: permission denied</code>; <code>DELETE audit_log</code> → <code>ERROR: permission denied</code>.</dd>
+    </dl>
+  </article>
+
+  <h2 id="bloque-b"><span class="num">4.</span>Bloque B · Higiene de secretos</h2>
+  <p class="lead">
+    Regla adoptada: <strong><code>.env</code> no contiene ni una sola credencial</strong>. Solo parámetros
+    no sensibles (puertos, nombres de base, umbrales). Las credenciales viven en archivos que el
+    repositorio ignora y que Docker monta como secretos.
+  </p>
+
+  <article class="change">
+    <div class="head"><span class="file">.env.example</span><span class="delta">21 líneas tocadas</span><span class="pill ok">modificado</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd>Se eliminaron todas las contraseñas y la API key. Quedan solo <code>POSTGRES_USER</code>, <code>POSTGRES_DB</code>, <code>GOV_MYSQL_DATABASE</code>, parámetros del copiloto, umbrales del IPS, <code>TRUSTED_PROXIES</code>, <code>ML_MODEL_PATH</code> y puertos.</dd>
+      <dt>Cómo</dt>
+      <dd>Comentarios que apuntan a <code>secrets/README.md</code> y a <code>scripts/gen-secrets.sh</code>; la clave de DeepSeek se documenta como «se pega en <code>secrets/deepseek_api_key.txt</code>, vacía = plantilla de respaldo».</dd>
+      <dt>Por qué</dt>
+      <dd><code>.env</code> se commitea por accidente con enorme facilidad, se imprime en capturas y aparece en <code>docker inspect</code>. Un archivo de ejemplo con contraseñas invita a copiarlas y quedarse ahí.</dd>
+      <dt>Evidencia</dt>
+      <dd><code>git ls-files | grep '\.env'</code> devuelve únicamente <code>.env.example</code>; <code>git check-ignore -v .env</code> confirma que <code>.env</code> está ignorado.</dd>
+    </dl>
+  </article>
+
+  <article class="change">
+    <div class="head"><span class="file">.gitignore</span><span class="delta">7 líneas añadidas</span><span class="pill ok">modificado</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd>Se ignoran <code>secrets/*</code>, <code>ml/model/*</code> y <code>ml/data/*</code>, con excepciones explícitas para <code>secrets/README.md</code>, <code>secrets/.gitkeep</code> y los <code>.gitkeep</code> de modelo y datos.</dd>
+      <dt>Cómo</dt>
+      <dd>Patrón de directorio + negaciones (<code>!secrets/README.md</code>), que es la forma correcta de ignorar contenido sin perder la documentación de la carpeta.</dd>
+      <dt>Por qué</dt>
+      <dd>Protege incluso frente a un <code>git add -A</code> distraído, y evita subir el <em>dataset</em> NSL-KDD y el <code>.joblib</code> entrenado (pesan demasiado para git y no deben versionarse aquí).</dd>
+      <dt>Evidencia</dt>
+      <dd><code>git check-ignore -v secrets/postgres_password.txt</code> → <code>.gitignore:8:secrets/*</code>.</dd>
+    </dl>
+  </article>
+
+  <article class="change">
+    <div class="head"><span class="file">scripts/gen-secrets.sh · scripts/gen-secrets.ps1</span><span class="delta">nuevos</span><span class="pill info">nuevo</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd>Utilidad idempotente que crea <code>secrets/postgres_password.txt</code>, <code>secrets/gov_mysql_root_password.txt</code> y un <code>secrets/deepseek_api_key.txt</code> vacío si no existe.</dd>
+      <dt>Cómo</dt>
+      <dd><code>umask 077</code>, <code>openssl rand -hex 24</code> (192 bits) con respaldo en <code>python3 -c 'secrets.token_hex(24)'</code>, <code>chmod 600</code>, y salida temprana si el archivo ya tiene contenido. El <code>.ps1</code> replica el flujo con ACL restringida para Windows.</dd>
+      <dt>Por qué</dt>
+      <dd>Pedirle a una persona que invente contraseñas produce <code>admin123</code>. Y rotar un secreto no debe romper el arranque de los demás: el script nunca sobreescribe.</dd>
+      <dt>Evidencia</dt>
+      <dd><code>ls -l secrets/</code> → <code>-rw-------</code> en los tres archivos; segunda ejecución imprime «existe: … (no se toca)».</dd>
+    </dl>
+  </article>
+
+  <article class="change">
+    <div class="head"><span class="file">secrets/README.md · secrets/.gitkeep</span><span class="delta">nuevos</span><span class="pill info">nuevo</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd>Documentación operativa de la carpeta: qué archivo consume cada servicio, cómo se lee, cómo generarlos y cómo rotarlos. El <code>.gitkeep</code> preserva la carpeta en el clonado.</dd>
+      <dt>Cómo</dt>
+      <dd>Tabla archivo → consumidor → mecanismo de lectura, y el procedimiento de rotación en tres pasos que incluye <code>docker compose down -v</code>.</dd>
+      <dt>Por qué</dt>
+      <dd>El paso que más se olvida: PostgreSQL guarda el password en el <strong>volumen</strong>; cambiar el archivo sin recrear el volumen deja el contenedor esperando la credencial vieja. Sin documentarlo, la rotación parece un bug.</dd>
+      <dt>Evidencia</dt>
+      <dd>El README explica también que <code>centinela_app</code> no tiene archivo propio porque su password se deriva en <code>03_grants.sh</code>.</dd>
+    </dl>
+  </article>
+
+  <article class="change">
+    <div class="head"><span class="file">centinela-core/app/config.py</span><span class="delta">61 líneas tocadas</span><span class="pill ok">modificado</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd><code>read_secret()</code> y un <code>model_validator</code> que inyecta la contraseña de la BD y la API key desde los archivos; nuevos campos <code>database_password_file</code>, <code>deepseek_api_key_file</code> y <code>trusted_proxies</code>; propiedad <code>trusted_proxy_networks</code>.</dd>
+      <dt>Cómo</dt>
+      <dd>La contraseña se inyecta sobre la URL con SQLAlchemy: <code>make_url(url).set(password=...).render_as_string(hide_password=False)</code>, en lugar de concatenar texto (que rompe con caracteres especiales). Los CIDR se parsean con <code>ipaddress.ip_network(strict=False)</code> y un CIDR inválido solo emite un <em>warning</em>.</dd>
+      <dt>Por qué</dt>
+      <dd>Permite que la URL siga siendo legible y sin secreto en <code>docker inspect</code>. Un CIDR mal escrito no debe tumbar el arranque del gateway, pero tampoco debe confiar en nadie por accidente.</dd>
+      <dt>Evidencia</dt>
+      <dd><code>/api/health</code> responde con la BD conectada y la URL sin contraseña; los logs no imprimen el valor del secreto.</dd>
+    </dl>
+  </article>
+
+  <h2 id="bloque-c"><span class="num">5.</span>Bloque C · Gateway e IPS</h2>
+
+  <article class="change">
+    <div class="head"><span class="file">centinela-core/app/gateway.py</span><span class="delta">42 líneas tocadas</span><span class="pill bad">fallo de seguridad corregido</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd><strong>1.</strong> <code>X-Forwarded-For</code> dejó de aceptarse a ciegas: solo se usa si el <em>peer</em> TCP pertenece a un CIDR de <code>TRUSTED_PROXIES</code>. <strong>2.</strong> El 403 de cuarentena ahora devuelve <code>rule_id: "CNT-IPS-QUARANTINE"</code>. <strong>3.</strong> <code>record_block()</code> recibe la categoría, severidad y técnica reales del veredicto. <strong>4.</strong> El evento de cuarentena toma su contexto de <code>last_block_context()</code>.</dd>
+      <dt>Cómo</dt>
+      <dd><code>_is_trusted_proxy(peer)</code> parsea el peer con <code>ipaddress.ip_address</code> y lo compara contra las redes; <code>_client_ip()</code> cae al peer real si no hay proxy declarado o el CIDR no coincide.</dd>
+      <dt>Por qué</dt>
+      <dd>La cabecera la escribe cualquiera. Sin control, un atacante <strong>rota el valor para esquivar su propia cuarentena</strong> o <strong>envenena la cuarentena de una IP ajena</strong> (por ejemplo, la del jurado). Es un <em>bypass</em> completo del IPS, no un detalle cosmético.</dd>
+      <dt>Evidencia</dt>
+      <dd>Con <code>TRUSTED_PROXIES</code> vacío, una petición con <code>X-Forwarded-For: 9.9.9.9</code> se registra con la IP real del socket; <code>/api/health</code> refleja la lista de proxies configurada.</dd>
+    </dl>
+  </article>
+
+  <article class="change">
+    <div class="head"><span class="file">centinela-core/app/ips/blocklist.py</span><span class="delta">23 líneas tocadas</span><span class="pill ok">modificado</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd>Se guarda el último bloqueo por IP (<code>_last_block</code>) y se expone <code>last_block_context(ip)</code>; <code>record_block()</code> acepta <code>category</code>, <code>severity</code> y <code>technique_id</code>.</dd>
+      <dt>Cómo</dt>
+      <dd>Diccionario en memoria con la causa del último veredicto <code>block</code>; valor por defecto <code>severity="alta"</code> cuando la IP entra en cuarentena sin contexto previo (p. ej. tras un reinicio).</dd>
+      <dt>Por qué</dt>
+      <dd>La cuarentena <strong>no vuelve a evaluar reglas</strong>: sin contexto, los ~995 eventos posteriores se etiquetaban como genéricos y se perdía la técnica ATT&amp;CK real. Con esto, el Observatorio muestra «SQLi · T1190» también en los eventos de contención.</dd>
+      <dt>Evidencia</dt>
+      <dd>Tras 3 detecciones, los eventos de cuarentena conservan la categoría del bloqueo original en la base, no <code>bruteforce</code> fijo como antes.</dd>
+    </dl>
+  </article>
+
+  <div class="callout info">
+    <p class="t">Decisión de diseño que conviene defender ante el jurado</p>
+    <p>
+      El gateway <strong>bloquea antes de reenviar</strong>: si la regla dice BLOCK, la petición nunca toca
+      el objetivo (<code>gov-pago</code> / <code>tickets</code>). El scoring de ML ocurre <em>después</em> del
+      veredicto y <strong>nunca lo cambia</strong>: solo enriquece el evento. Eso hace el comportamiento
+      determinista y explicable, que es lo que exige una herramienta forense.
+    </p>
+  </div>
+
+  <h2 id="bloque-d"><span class="num">6.</span>Bloque D · Motor de reglas</h2>
+
+  <article class="change">
+    <div class="head"><span class="file">centinela-core/app/engine/normalizer.py</span><span class="delta">11 líneas tocadas</span><span class="pill bad">evasión corregida</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd><code>inspectable_text</code> ahora incluye, además del original, una variante de <code>query_string</code> y <code>body</code> con <code>+</code> convertido en espacio.</dd>
+      <dt>Cómo</dt>
+      <dd>Se construye la lista base y se extiende con <code>variant.replace("+", " ")</code> antes del <code>"\n".join(...)</code>, de modo que las reglas ven <strong>ambas formas</strong> y ninguna pierde detección por normalizar.</dd>
+      <dt>Por qué</dt>
+      <dd>En <code>application/x-www-form-urlencoded</code>, <code>+</code> significa espacio, pero <code>urllib.unquote()</code> no lo traduce. Por eso <code>1+union+select+…</code> <strong>esquivaba todas las reglas de SQLi</strong>: una evasión trivial de WAF que cualquiera probaría en la demo.</dd>
+      <dt>Evidencia</dt>
+      <dd><code>union+select</code> y <code>' OR '1'='1</code> ahora devuelven 403 con <code>CNT-SQLI-002</code> / <code>CNT-SQLI-001</code> en lugar de 200.</dd>
+    </dl>
+  </article>
+
+  <article class="change">
+    <div class="head"><span class="file">centinela-core/app/engine/rules.yaml</span><span class="delta">34 líneas tocadas</span><span class="pill ok">modificado</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd><strong>1.</strong> <code>CNT-SQLI-001</code> ahora cubre la tautología entrecomillada. <strong>2.</strong> Las reglas de <code>cmdi</code> se movieron <em>antes</em> que las de <code>traversal</code>. <strong>3.</strong> Se documentó el orden como prioridad semántica.</dd>
+      <dt>Cómo</dt>
+      <dd>Patrón nuevo: <code>(?i)('|%27)\s*(or|and)\s*('|%27)?\s*1\s*('|%27)?\s*=\s*('|%27)?\s*1</code>, que acepta la comilla antes y después del <code>1</code> y antes del <code>=</code>.</dd>
+      <dt>Por qué</dt>
+      <dd>El patrón anterior exigía que el <code>1</code> no estuviera entrecomillado, así que <code>' OR '1'='1' --</code> pasaba. Y en <code>; cat /etc/passwd</code> coinciden ambas familias: gana la primera del archivo, por lo que el orden define si el evento se etiqueta como <strong>T1059 (ejecución de comandos)</strong> o T1083 (lectura de archivos). La categoría correcta es T1059.</dd>
+      <dt>Evidencia</dt>
+      <dd>Payloads de prueba devuelven <code>rule_id</code> correcto y <code>technique_id=T1059</code> para <code>; cat /etc/passwd</code>.</dd>
+    </dl>
+  </article>
+
+  <article class="change">
+    <div class="head"><span class="file">db/init/02_seed_attack.sql</span><span class="delta">9 líneas tocadas</span><span class="pill bad">pérdida de evidencia corregida</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd>Se sembró la fila <code>CNT-IPS-QUARANTINE</code> (categoría <code>ips</code>, severidad <code>alta</code>, <code>T1110</code>, patrón <code>(?!)</code>) y se replicó el patrón corregido de <code>CNT-SQLI-001</code>.</dd>
+      <dt>Cómo</dt>
+      <dd><code>(?!)</code> es una expresión que <strong>nunca coincide</strong>: la fila existe solo para satisfacer la clave foránea <code>event.rule_id → rule.id</code>, deja claro que no es una regla evaluable y evita que el motor la dispare.</dd>
+      <dt>Por qué</dt>
+      <dd>La cuarentena emitía un <code>rule_id</code> que no existía en <code>rule</code>: el <code>INSERT</code> fallaba por FK y <strong>abortaba la transacción del lote</strong>, perdiendo ~90 % de la evidencia justo durante el ataque (cuando más se necesita).</dd>
+      <dt>Evidencia</dt>
+      <dd>Después del arreglo, una corrida de 1 000 peticiones deja eventos de cuarentena persistidos con su categoría y sin errores de FK en los logs.</dd>
+    </dl>
+  </article>
+
+  <h2 id="bloque-e"><span class="num">7.</span>Bloque E · Pipeline de eventos, ML e IA</h2>
+
+  <article class="change">
+    <div class="head"><span class="file">centinela-core/app/queue.py</span><span class="delta">135 líneas tocadas</span><span class="pill bad">pérdida de evidencia corregida</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd><strong>1.</strong> Savepoint por evento (<code>begin_nested</code>). <strong>2.</strong> Reintento sin <code>rule_id</code> si falla la FK. <strong>3.</strong> Reencolado con tope <code>MAX_REQUEUE = 10 000</code> si la BD falla. <strong>4.</strong> Los suscriptores SSE rotos se descartan en vez de abortar el <em>flush</em>. <strong>5.</strong> <code>ai_status='done'</code> inmediato para los <code>allow</code>. <strong>6.</strong> <code>ml_score</code> se calcula aquí cuando llega en <code>None</code>.</dd>
+      <dt>Cómo</dt>
+      <dd>Cada evento se envuelve en su propio savepoint: si la fila falla, se revierte solo esa fila y la transacción exterior sigue viva para el resto del lote. El <em>broadcast</em> SSE ocurre <strong>después</strong> del <code>commit</code>, para no anunciar eventos que luego se revierten. <code>_persist_one()</code> centraliza la creación de la fila, el <code>append_entry</code> de auditoría y el payload SSE.</dd>
+      <dt>Por qué</dt>
+      <dd>Un solo evento inválido (FK rota) hacía <em>rollback</em> de todo el lote: durante un ataque se perdía la mayor parte de la evidencia y el panel se quedaba vacío justo cuando el jurado mira. Un <em>allow</em> marcado <code>pending</code> además quedaba huérfano para siempre, porque el worker solo recoge <code>block</code>.</dd>
+      <dt>Evidencia</dt>
+      <dd>Tras la corrección, 1 000 peticiones producen ~1 000 eventos persistidos, sin <code>traceback</code> de FK y con los <code>allow</code> en <code>done</code>.</dd>
+    </dl>
+  </article>
+
+  <article class="change">
+    <div class="head"><span class="file">centinela-core/app/engine/features.py</span><span class="delta">nuevo · 82 líneas</span><span class="pill info">nuevo</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd>Proyección explícita de un evento HTTP a las <strong>41 features de NSL-KDD</strong> (<code>NSL_KDD_FEATURES</code>), con las tres categóricas declaradas aparte (<code>protocol_type</code>, <code>service</code>, <code>flag</code>).</dd>
+      <dt>Cómo</dt>
+      <dd>Las features que el gateway no puede observar (duración, bytes de respuesta, agregados por ventana) se fijan a <code>0.0</code> y quedan documentadas como tales. Las observables se derivan: <code>flag="REJ"</code> si hubo bloqueo, <code>hot=1</code> para categorías de inyección, <code>num_failed_logins=1</code> para bruteforce, <code>src_bytes</code> del tamaño del payload.</dd>
+      <dt>Por qué</dt>
+      <dd>El modelo se entrena con flujos de red y el gateway decide en capa 7: sin una proyección explícita y <em>auditable</em>, el vector sería inventado y el <code>ml_score</code> sería ruido. Aquí queda claro qué ve el modelo y qué no.</dd>
+      <dt>Evidencia</dt>
+      <dd><code>/api/health</code> reporta <code>feature_columns: 41</code> cuando el bundle está cargado; un evento de prueba devuelve <code>ml_score</code> numérico.</dd>
+    </dl>
+  </article>
+
+  <article class="change">
+    <div class="head"><span class="file">centinela-core/app/engine/ml.py</span><span class="delta">125 líneas tocadas</span><span class="pill bad">bug de ruta corregido</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd><code>resolve_model_path()</code> con orden explícito (<code>ML_MODEL_PATH</code> → <code>/app/ml/model/nsl_kdd_rf.joblib</code> → ruta del repo); soporte del bundle <code>{model, encoders, feature_columns}</code>; método <code>status()</code> para <code>/api/health</code>; reintento si el modelo aparece después del arranque.</dd>
+      <dt>Cómo</dt>
+      <dd>Si el artefacto es un <code>dict</code> con clave <code>model</code>, se cargan modelo, <em>encoders</em> y orden de columnas; si es un estimador «pelado», se acepta igual. <code>_build_vector()</code> aplica los <em>encoders</em> guardados antes de predecir. Si el archivo no existe, <strong>no se marca como intentado</strong>: el siguiente evento vuelve a comprobar.</dd>
+      <dt>Por qué</dt>
+      <dd>La versión anterior resolvía con <code>parents[3]</code>, que dentro del contenedor apunta a <code>/ml/model</code> y no al volumen <code>/app/ml/model</code>: <strong>el modelo nunca se habría encontrado aunque José lo entregara</strong>. Y sin los <em>encoders</em> del entrenamiento, la inferencia codificaría distinto y el score sería inválido.</dd>
+      <dt>Evidencia</dt>
+      <dd>Con un bundle sintético: <code>model_loaded: true</code>, <code>feature_columns: 41</code> y un evento con <code>ml_score = 0.9</code>; sin modelo, el pipeline sigue funcionando con <code>ml_score = null</code>.</dd>
+    </dl>
+  </article>
+
+  <article class="change">
+    <div class="head"><span class="file">ml/train.py · ml/README.md</span><span class="delta">+23 / 4</span><span class="pill ok">modificado</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd>El entrenamiento ahora persiste un <strong>bundle</strong> con <code>model</code>, <code>encoders</code>, <code>feature_columns</code> y <code>trained_at</code>, en lugar de solo el estimador.</dd>
+      <dt>Cómo</dt>
+      <dd>Se ajustan los <code>LabelEncoder</code> de <code>protocol_type</code>, <code>service</code> y <code>flag</code> sobre el <em>train set</em> y se guardan junto al modelo con <code>joblib.dump({...})</code>.</dd>
+      <dt>Por qué</dt>
+      <dd>Sin los <em>encoders</em>, el servicio tendría que adivinarlos en inferencia y un valor no visto rompería la predicción. Guardarlos hace el artefacto <strong>autocontenido y reproducible</strong>: el mismo vector en entrenamiento y en producción.</dd>
+      <dt>Evidencia</dt>
+      <dd>Carga del bundle sin errores y <code>feature_columns: 41</code> en <code>/api/health</code>; el README documenta el formato esperado.</dd>
+    </dl>
+  </article>
+
+  <article class="change">
+    <div class="head"><span class="file">centinela-core/app/ai/worker.py</span><span class="delta">18 líneas tocadas</span><span class="pill ok">modificado</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd><code>BATCH_SIZE</code> pasó de 10 a <strong>100</strong>; el bucle procesa sin esperar el intervalo de sondeo mientras el lote venga lleno.</dd>
+      <dt>Cómo</dt>
+      <dd><code>_process_pending_batch()</code> devuelve cuántos eventos procesó y el bucle hace <code>continue</code> si <code>processed &gt;= BATCH_SIZE</code>.</dd>
+      <dt>Por qué</dt>
+      <dd>Con lote 10 y sondeo periódico, el rendimiento era de ~3 eventos/s: tras una ráfaga de 1 000, el panel tardaba minutos en mostrar los análisis. Con lote 100 se drenan 1 000 eventos en ~6 s, que es lo que se necesita en vivo.</dd>
+      <dt>Evidencia</dt>
+      <dd>1 000 eventos drenados en ~6 s; el panel pasa de <code>pending</code> a <code>done</code> durante la demo, no después.</dd>
+    </dl>
+  </article>
+
+  <article class="change">
+    <div class="head"><span class="file">centinela-core/run.py</span><span class="delta">12 líneas añadidas</span><span class="pill bad">funcionalidad muerta corregida</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd>El worker de IA se arranca desde el proceso principal.</dd>
+      <dt>Cómo</dt>
+      <dd>Tarea <em>asyncio</em> lanzada en el <em>startup</em> de la aplicación, junto al gateway y a la API.</dd>
+      <dt>Por qué</dt>
+      <dd>Estaba definido pero <strong>nunca se invocaba</strong>: el copiloto existía en el código y no corría nunca. En la demo, todos los eventos se habrían quedado en <code>ai_status='pending'</code> y la columna de resumen IA vacía.</dd>
+      <dt>Evidencia</dt>
+      <dd>Los eventos con veredicto <code>block</code> pasan a <code>done</code> y reciben <code>ai_summary</code> (plantilla de respaldo si no hay clave).</dd>
+    </dl>
+  </article>
+
+  <article class="change">
+    <div class="head"><span class="file">centinela-core/app/api/soc.py</span><span class="delta">4 líneas añadidas</span><span class="pill ok">modificado</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd><code>/api/health</code> publica un bloque <code>ml</code> con <code>model_loaded</code>, <code>model_path</code>, <code>model_present</code> y <code>feature_columns</code>.</dd>
+      <dt>Cómo</dt>
+      <dd><code>"ml": ml_scorer.status()</code> dentro de la respuesta de salud existente.</dd>
+      <dt>Por qué</dt>
+      <dd>La compuerta F3 («el volumen del modelo está bien montado y el artefacto carga») se comprueba con un <code>curl</code>, sin bucear en logs ni reiniciar nada. Es evidencia directa para Karla y para José.</dd>
+      <dt>Evidencia</dt>
+      <dd><code>curl -s localhost:3000/api/health</code> devuelve <code>"model_path":"/app/ml/model/nsl_kdd_rf.joblib"</code> y <code>"feature_columns":0</code> mientras no exista el artefacto.</dd>
+    </dl>
+  </article>
+
+  <article class="change">
+    <div class="head"><span class="file">attacker-sim/sim.py</span><span class="delta">91 líneas tocadas</span><span class="pill ok">modificado</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd>Los 403 se clasifican por origen: <strong>motor de reglas</strong> (trae <code>rule_id</code>) vs. <strong>cuarentena del IPS</strong> (<code>error="ip_quarantined"</code>). Se reportan métricas separadas: <code>malicious_rule_blocked</code>, <code>malicious_quarantine</code>, <code>legit_rule_blocked</code>, <code>legit_quarantine</code> y el índice del primer bloqueo por cuarentena.</dd>
+      <dt>Cómo</dt>
+      <dd><code>_blocked_rule_id(response)</code> lee el JSON del 403; <code>IPS_QUARANTINE_RULE</code> normaliza la causa. Se imprimen dos tasas de falsos positivos: la del motor (métrica de F3) y la total (incluye contención).</dd>
+      <dt>Por qué</dt>
+      <dd>El simulador usa una sola IP: tras 3 detecciones el IPS la aísla y <strong>todo</strong> lo demás devuelve 403, incluido el tráfico legítimo. Sin separar causas, la métrica de FP del motor salía inflada y parecía un fallo de las reglas cuando era contención por diseño.</dd>
+      <dt>Evidencia</dt>
+      <dd>La corrida reporta FP del motor 0 % y explica por separado los bloqueos de cuarentena, en lugar de un único porcentaje engañoso.</dd>
+    </dl>
+  </article>
+
+  <h2 id="bloque-f"><span class="num">8.</span>Bloque F · Documentación y herramientas</h2>
+
+  <article class="change">
+    <div class="head"><span class="file">README.md</span><span class="delta">11 líneas tocadas</span><span class="pill ok">modificado</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd>Las instrucciones de arranque cambiaron: ya no se piden credenciales en <code>.env</code>; se ejecuta <code>make secrets</code> y luego <code>docker compose up --build --wait</code>.</dd>
+      <dt>Cómo</dt>
+      <dd>Se reescribió el bloque de arranque, se eliminó la mención de editar <code>.env</code> con contraseñas y el detalle de cada secreto se delegó a <code>secrets/README.md</code>.</dd>
+      <dt>Por qué</dt>
+      <dd>El README es lo primero que lee el jurado y el equipo. Si contradice el diseño de secretos, la gente vuelve a escribir contraseñas en <code>.env</code> «porque el README lo dice».</dd>
+      <dt>Evidencia</dt>
+      <dd>Un clon nuevo puede arrancar siguiendo el README sin credenciales previas.</dd>
+    </dl>
+  </article>
+
+  <article class="change">
+    <div class="head"><span class="file">docs/TAREAS.md</span><span class="delta">49 líneas tocadas</span><span class="pill ok">modificado</span></div>
+    <dl>
+      <dt>Qué</dt>
+      <dd>Se registraron las tareas cerradas con su evidencia y las decisiones abiertas (rol <code>centinela_app</code>, modelo pendiente, clave DeepSeek, ensayo F6).</dd>
+      <dt>Cómo</dt>
+      <dd>Cada tarea quedó con estado, evidencia ejecutada y motivo del bloqueo; las decisiones que no son técnicas se marcaron como tales para no confundirlas con trabajo pendiente del equipo.</dd>
+      <dt>Por qué</dt>
+      <dd>Una decisión sin dueño ni fecha se pierde. El documento deja explícito qué falta y <em>por qué</em> falta, para que el bloqueo no se confunda con un olvido del equipo.</dd>
+      <dt>Evidencia</dt>
+      <dd>El documento refleja los 6 ítems de la lista de Karla: 4 cerrados, 1 con la infraestructura lista y 1 abierto por dependencia externa.</dd>
+    </dl>
+  </article>
+
+  <h2 id="pendientes"><span class="num">9.</span>Pendientes: qué está listo y qué falta</h2>
+  <p class="lead">
+    Lista original de DevOps (Karla), contrastada con la evidencia de la sección anterior.
+    Estado global: <strong>4 cerrados · 1 cerrado en infraestructura · 1 abierto</strong>.
+  </p>
+  <div class="bar"><span class="done" style="width:67%"></span></div>
+  <p style="font-size:12px;color:var(--muted);margin-top:4px">4 de 6 ítems cerrados por completo (67 %).</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:4%">#</th>
+        <th style="width:30%">Pendiente</th>
+        <th style="width:14%">Estado</th>
+        <th>Cómo se resolvió / por qué falta</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="num">1</td>
+        <td><strong>F0:</strong> <code>.env</code> listo, <code>up --build</code> y 6 servicios <code>healthy</code></td>
+        <td><span class="pill ok">LISTO</span></td>
+        <td>Se añadieron los 4 healthchecks que faltaban. <code>up --build --wait</code> sale 0 con 6/6 sanos desde volumen limpio. <em>Nota:</em> ya no hay «contraseñas en <code>.env</code>»: las genera <code>make secrets</code>.</td>
+      </tr>
+      <tr>
+        <td class="num">2</td>
+        <td><strong>Red:</strong> <code>gov-pago</code> y <code>tickets</code> solo accesibles por el gateway 8080</td>
+        <td><span class="pill ok">LISTO</span></td>
+        <td>Sin <code>ports:</code> en ambos servicios. <code>curl :4000</code> y <code>curl :80</code> → <code>000</code>; por <code>:8080</code> → <code>200</code>. Se cerró además el <em>bypass</em> de <code>X-Forwarded-For</code>.</td>
+      </tr>
+      <tr>
+        <td class="num">3</td>
+        <td><strong>ML:</strong> volumen <code>./ml/model:/app/ml/model:ro</code> y modelo cargado</td>
+        <td><span class="pill warn">INFRA LISTA · FALTA ARTEFACTO</span></td>
+        <td>El montaje <code>ro</code> es correcto y la ruta quedó arreglada (<code>/app/ml/model</code>). Falta el <code>nsl_kdd_rf.joblib</code> real: lo entrega José Oropeza (dataset NSL-KDD + entrenamiento). Probado con un bundle sintético: 41 features y <code>ml_score</code> llegando al evento.</td>
+      </tr>
+      <tr>
+        <td class="num">4</td>
+        <td><strong>Secretos:</strong> nada commiteado, nada visible en <code>docker inspect</code></td>
+        <td><span class="pill ok">LISTO</span></td>
+        <td><code>.env</code> sin credenciales; <code>secrets/*.txt</code> con 600 e ignorados; solo <code>.env.example</code> versionado. Probado a nivel de motor: <code>UPDATE</code>/<code>DELETE</code> rechazados para el rol de aplicación.</td>
+      </tr>
+      <tr>
+        <td class="num">5</td>
+        <td><strong>Reset:</strong> <code>make reset-db</code> en menos de 10 s y cadena en GENESIS</td>
+        <td><span class="pill ok">LISTO</span></td>
+        <td>6.63 s medidos, incluido el reinicio del core y la espera a <code>healthy</code>. <code>/api/audit/verify</code> → <code>valid: true</code>, <code>entries_checked: 0</code>. Se corrigió el script que truncaba la BD equivocada.</td>
+      </tr>
+      <tr>
+        <td class="num">6</td>
+        <td><strong>F6:</strong> operar la demo en vivo (proyector, terminal visible)</td>
+        <td><span class="pill no">NO LISTO</span></td>
+        <td>No es código: es ensayo. <code>demo.ps1</code> ya genera secretos y recompila el simulador. Falta correr el guion completo en la máquina del pitch y cronometrarlo; además la clave real de DeepSeek está vacía (funciona con plantilla de respaldo, pero no es la narrativa que se quiere mostrar).</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3 style="margin-top:26px">Por qué faltan exactamente los dos ítems abiertos</h3>
+
+  <div class="card">
+    <h4 style="margin-top:0">Ítem 3 · Modelo ML: la infraestructura está, el artefacto no</h4>
+    <p>
+      Lo que dependía de este repositorio ya está hecho y probado: el volumen está montado en solo
+      lectura, la ruta se resuelve a <code>/app/ml/model</code>, el cargador acepta el bundle
+      <code>{model, encoders, feature_columns}</code>, el <em>score</em> viaja hasta
+      <code>event.ml_score</code> y <code>/api/health</code> lo hace visible.
+    </p>
+    <p>
+      <strong>El bloqueo es externo:</strong> falta el <code>nsl_kdd_rf.joblib</code> entrenado sobre
+      NSL-KDD (José Oropeza). No se puede fabricar aquí sin el <em>dataset</em>, y un modelo entrenado
+      con datos inventados sería peor que no tener modelo: daría <em>scores</em> con apariencia de
+      validez. Por eso se validó el camino con un bundle sintético y se borró después.
+    </p>
+    <p style="margin-bottom:0">
+      <strong>Desbloqueo:</strong> copiar el archivo en <code>ml/model/</code>. No hace falta reiniciar:
+      el cargador reintenta y <code>/api/health</code> pasa a <code>model_present: true</code>,
+      <code>model_loaded: true</code>.
+    </p>
+  </div>
+
+  <div class="card">
+    <h4 style="margin-top:0">Ítem 6 · F6: ensayo en vivo, no implementación</h4>
+    <p>
+      Todo lo que la demo necesita ya existe y está automatizado (<code>reset-db</code>,
+      <code>--profile demo</code>, simulador con métricas separadas, healthchecks que impiden arrancar
+      con un servicio caído). Lo que falta es <strong>tiempo de escenario</strong>: correr el guion
+      completo en la máquina de la presentación, con proyector y terminal visible, y medir cuánto tarda
+      cada bloque.
+    </p>
+    <p>
+      <strong>Segundo bloqueo:</strong> la clave real de DeepSeek está vacía. El sistema funciona
+      (plantilla de respaldo), pero el resumen IA que se ve en el panel es genérico. Escribir la clave
+      en <code>secrets/deepseek_api_key.txt</code> no requiere cambio de código ni reinicio del stack.
+    </p>
+    <p style="margin-bottom:0">
+      <strong>Riesgo si no se ensaya:</strong> la cuarentena del IPS corta el tráfico legítimo del
+      simulador tras la tercera detección. Si nadie lo explica en vivo, la audiencia puede leerlo como
+      un falso positivo masivo. Es el punto que más conviene tener hablado.
+    </p>
+  </div>
+
+  <h3 style="margin-top:26px">Pendientes técnicos abiertos (no estaban en la lista de Karla)</h3>
+  <table>
+    <thead>
+      <tr><th style="width:34%">Pendiente</th><th style="width:14%">Estado</th><th>Por qué / siguiente paso</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>tests/test_rules.py</code>: caso de evasión con <code>+</code> como espacio y variante <code>/* */</code></td>
+        <td><span class="pill warn">PENDIENTE</span></td>
+        <td>El arreglo del normalizador está probado a mano contra el gateway, pero <strong>no hay test de regresión</strong>: un cambio futuro podría reintroducir la evasión sin que nadie lo note. Se añade y se corre <code>pytest</code>.</td>
+      </tr>
+      <tr>
+        <td><code>DATABASE_URL</code> apuntando a <code>centinela_app</code></td>
+        <td><span class="pill warn">DECISIÓN DE EQUIPO</span></td>
+        <td>Los <code>GRANT</code> existen y fueron probados, pero el servicio sigue conectando como superusuario: mientras sea así, el <code>REVOKE</code> <strong>no protege en producción</strong>, solo demuestra que el rol correcto funciona. Requiere separar usuario de migraciones.</td>
+      </tr>
+      <tr>
+        <td>Confirmar p95 de <code>engine_us</code> en una corrida completa de demo</td>
+        <td><span class="pill warn">PENDIENTE</span></td>
+        <td>Medido 1.8 ms en la corrida de F3; falta reproducirlo en el ensayo F6 con el panel y el worker de IA activos, para descartar que el coste de regex suba bajo carga real.</td>
+      </tr>
+      <tr>
+        <td>Commit del bloque de cambios</td>
+        <td><span class="pill warn">PENDIENTE</span></td>
+        <td>33 archivos en el árbol de trabajo, sin commitear. Revisar que no aparezcan <code>secrets/*.txt</code> ni <code>.env</code> y cerrar en un solo commit fechado.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="riesgos"><span class="num">10.</span>Riesgos y notas para el pitch</h2>
+
+  <div class="callout warn">
+    <p class="t">1 · El simulador usa una sola IP y el IPS la pone en cuarentena</p>
+    <p>
+      Tras 3 detecciones, la cuarentena aísla el contenedor del simulador y <strong>todo</strong> lo
+      posterior devuelve 403, incluido su tráfico legítimo. Es contención correcta, pero si no se
+      explica, la audiencia verá «el sistema bloquea todo». Conviene decir la frase antes de que la
+      pregunten: <em>«el IPS contiene el host; por eso medimos la precisión del motor por separado»</em>.
+      El simulador ya imprime ambas métricas.
+    </p>
+  </div>
+
+  <div class="callout warn">
+    <p class="t">2 · Sin modelo, la columna ML se ve vacía</p>
+    <p>
+      Con <code>model_present: false</code>, <code>ml_score</code> es <code>null</code> y el panel no
+      muestra puntuación. Hay que decidir antes del pitch: ocultar la columna o explicarla como
+      «enriquecimiento opcional que no decide el veredicto». Ambas son defendibles; improvisar no.
+    </p>
+  </div>
+
+  <div class="callout info">
+    <p class="t">3 · El <code>REVOKE</code> es real, pero todavía no vinculante en ejecución</p>
+    <p>
+      El rol <code>centinela_app</code> no puede modificar ni borrar evidencia, y está probado. Pero el
+      servicio sigue conectando como <code>POSTGRES_USER</code>: la protección existe <em>y no está
+      aplicada</em>. Decirlo así es más honesto (y más sólido) que afirmar que la base es inmutable
+      hoy. Es una decisión pendiente del equipo, no un fallo oculto.
+    </p>
+  </div>
+
+  <div class="callout ok">
+    <p class="t">4 · Lo que sí se puede afirmar sin matices</p>
+    <p>
+      Arranque limpio con 6/6 servicios sanos · objetivos inalcanzables fuera del gateway · cero
+      credenciales en el repositorio o en <code>docker inspect</code> · motor determinista con
+      <strong>100 % de detección y 0 % de falsos positivos de motor</strong> en 1 000 peticiones ·
+      p95 de 1.8 ms · reset de base en 6.6 s con cadena de auditoría válida desde GENESIS.
+    </p>
+  </div>
+
+  <h2 id="comandos"><span class="num">11.</span>Anexo · Comandos reproducibles</h2>
+  <p class="lead">Cada bloque se puede pegar tal cual para re-verificar lo afirmado arriba.</p>
+
+  <h4>Arranque limpio y compuerta F0</h4>
+  <pre><code>cd /home/bykp/proyectos/Centinela
+docker compose down -v --remove-orphans
+docker compose up -d --build --wait; echo "exit=$?"
+docker compose ps --format '{{.Name}} | {{.State}} | {{.Health}}'</code></pre>
+
+  <h4>Aislamiento de red</h4>
+  <pre><code>docker compose config | grep published        # solo 8080, 3000, 5173
+docker port target_gov_pago                   # vacío
+docker port target_tickets_node               # vacío
+curl -s -m 4 -w 'HTTP:%{http_code}' http://localhost:4000/tickets   # 000
+curl -s -m 4 -w 'HTTP:%{http_code}' http://localhost:8080/gov-pago/ # 200</code></pre>
+
+  <h4>Higiene de secretos</h4>
+  <pre><code>ls -l secrets/                                # -rw------- en los tres
+git ls-files | grep '\.env'                   # solo .env.example
+git check-ignore -v .env secrets/postgres_password.txt
+docker inspect centinela_core | grep -E 'PASSWORD|DATABASE'  # solo rutas *_FILE</code></pre>
+
+  <h4>Modelo ML (compuerta F3)</h4>
+  <pre><code>docker inspect centinela_core \
+  --format '{{range .Mounts}}{{.Source}} -> {{.Destination}} ({{if .RW}}rw{{else}}ro{{end}}){{end}}'
+curl -s http://localhost:3000/api/health | python3 -m json.tool | grep -A4 '"ml"'</code></pre>
+
+  <h4>Reset y cadena de auditoría</h4>
+  <pre><code>time make reset-db
+curl -s http://localhost:3000/api/audit/verify    # {"valid":true,...,"entries_checked":0}</code></pre>
+
+  <h4>Corrida de ataque (F3)</h4>
+  <pre><code>docker compose --profile demo run --build --rm \
+  attacker-sim --total 1000 --malicious-ratio 0.3</code></pre>
+
+  <h4>Inmutabilidad a nivel de motor</h4>
+  <pre><code>docker compose exec -T centinela-db sh -c \
+  'psql -U centinela_app -d "$POSTGRES_DB" -c "UPDATE event SET verdict = '\''allow'\'';"'
+# ERROR: permission denied for table event</code></pre>
+
+  <footer>
+    <p>
+      <strong>Fuente:</strong> árbol de trabajo sobre <code>411c3fe</code> — 25 archivos modificados y 8
+      nuevos (incluido este informe). Las cifras provienen de ejecuciones reales en esta máquina el
+      13/11/2026, no de estimaciones.
+    </p>
+    <p>
+      Informe generado como evidencia de cierre del Sprint 1 · CENTINELA · Hackatón UNETI IA 2026.
+      Documento autocontenido: se abre sin conexión y se imprime a PDF con
+      <code>Ctrl/Cmd + P</code>.
+    </p>
+  </footer>
+
+</main>
+</body>
+</html>

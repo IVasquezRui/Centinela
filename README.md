@@ -45,10 +45,15 @@ Requisitos: Docker y Docker Compose.
 
 ```bash
 cp .env.example .env
-# Editar .env: como mínimo, DEEPSEEK_API_KEY si se quiere triage real de IA
-# (sin la clave, el sistema usa la plantilla de respaldo automáticamente).
 
-docker compose up --build
+# Credenciales: NO se escriben en .env (ver secrets/README.md).
+make secrets      # genera secrets/*.txt con permisos 600 y aleatorios
+                  # (Windows sin make: ./scripts/gen-secrets.ps1)
+
+# Copiloto IA opcional: pegar la clave real en secrets/deepseek_api_key.txt.
+# Sin clave, el sistema usa la plantilla de respaldo automáticamente.
+
+docker compose up --build --wait
 ```
 
 Al terminar de levantar (`docker compose ps` debe mostrar todos los
