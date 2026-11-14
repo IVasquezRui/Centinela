@@ -15,6 +15,7 @@ export default function EventsTable({ events }: EventsTableProps) {
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-800">
       <table className="min-w-full divide-y divide-slate-800 text-sm">
+        <caption className="sr-only">Eventos de seguridad detectados por el motor de CENTINELA</caption>
         <thead className="bg-centinela-panel text-left text-slate-400">
           <tr>
             <th className="px-4 py-2">Hora</th>

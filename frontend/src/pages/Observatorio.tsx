@@ -37,7 +37,7 @@ export default function Observatorio() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-bold">Observatorio Nacional de Ciberseguridad</h1>
+        <h1 className="text-3xl font-bold lg:text-4xl">Observatorio Nacional de Ciberseguridad</h1>
         <p className="mt-1 max-w-2xl text-slate-400">
           Panorama de amenazas agregado y anonimizado. No se publica
           información que identifique a personas, empresas o entes

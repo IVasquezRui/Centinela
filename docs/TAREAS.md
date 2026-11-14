@@ -11,22 +11,21 @@
 
 ---
 
-## Estado general (actualizado 2026-11-14, tarde)
+## Estado general (actualizado 2026-11-14, noche)
 
 **Ramas:**
-- `main` — solo el esqueleto inicial (`411c3fe`), congelado.
-- `develop` — fuente de verdad actual del equipo. Ya incluye la infraestructura de devops de Karla (PR #1) y las correcciones de privilegios/auditoría de la rama `mli` (PR #2, Luis). Backend compila, **52/52 tests en verde**, `docker compose config` válido, frontend compila y tipa sin errores (`tsc -b` y `vite build` limpios).
-- `motor` (Iván) — **lista para PR a `develop`**: sube el catálogo de reglas de 14 a 20, endurece el normalizador (null bytes, separadores invertidos) y amplía la suite a 43 tests propios. Tenía conflictos reales contra `develop` (no solo de texto) en `rules.yaml` y `db/init/02_seed_attack.sql`; ya se resolvieron, se corrigió un orden interno roto durante la resolución (`CNT-CMDI-003` debe evaluarse antes que `CNT-CMDI-001`) y se verificó con **52/52 tests en verde**. Mergeada y pusheada a `origin/motor` (`184dffd`); falta que alguien del equipo abra/apruebe el PR en GitHub.
+- `main` y `develop` están **al mismo commit**: el equipo ya mergeó el PR de Karla (PR #1), el de `mli`/Luis (PR #2 y #3) y el de `motor`/Iván (PR #4 y #5) directo contra `main`. Catálogo de reglas en **20**, normalizador endurecido, **53/53 tests en verde**, `docker compose config` válido, frontend compila y tipa sin errores (`tsc -b` y `vite build` limpios).
 - Equipo: José Estanga (documentación) es el único rol sin commits propios todavía en el repo.
 
-**Lo que ya funciona de punta a punta (en `develop`):** gateway inline con bloqueo determinista, IPS con cuarentena, cola + auditoría con cadena de hashes verificable, triage de IA con DeepSeek real (con *fallback*), 5 indicadores del Observatorio, separación de privilegios de BD (`centinela_app` sin permisos de `UPDATE`/`DELETE`/`TRUNCATE` salvo las dos columnas de triage), secretos fuera de `.env`, los 6 servicios de `docker compose up` quedan `healthy`.
+**Verificado de punta a punta en una máquina real (2026-11-14, primera vez):** `docker compose up -d --build --wait` deja los 6 servicios `healthy` partiendo de volúmenes nuevos. Se probó con Playwright contra el stack vivo: panel SOC carga con KPIs reales, **SSE actualiza la tabla de eventos sin recargar** al lanzar tráfico nuevo, los filtros (severidad/IP/fechas) funcionan, el mapa de calor categoría×severidad se pinta con datos reales, el botón "Verificar auditoría" confirma la cadena de hashes íntegra, el Observatorio público muestra los 5 indicadores y alertas en lenguaje claro, y la navegación por teclado (Tab) enfoca primero el skip-link. Cero errores de consola.
+
+**Bug real encontrado y corregido durante esta verificación (no era de MySQL):** `scripts/gen-secrets.sh` generaba los secretos con un `\r` final (CRLF) porque el `openssl` que encuentra Git Bash en Windows escribe `\r\n`. El bootstrap de MySQL arma la contraseña de las cuentas leyendo el secreto por shell (que solo recorta `\n`), pero PHP usa `trim()` (que sí recorta `\r`) — dos lecturas del mismo archivo producían dos contraseñas distintas, así que `gov-pago` nunca podía autenticar contra `gov-mysql` aunque todo pareciera bien configurado. Se arregló en `gen-secrets.sh` (`tr -d '\r\n'`) y se aprovechó para mover `gov-pago` de conectarse como `root` a un usuario dedicado (`gov_app`, con los mismos permisos excesivos a propósito — ver `secrets/README.md`). Cualquier secreto generado con la versión vieja del script debe regenerarse y el volumen de `gov-mysql` recrearse (datos sintéticos, no hay nada que preservar).
 
 **Lo que falta de verdad (no evidencia, trabajo real):**
-1. Fusionar `motor` → `develop` (PR abierto en GitHub, pendiente de aprobación/merge).
-2. Frontend: filtros de eventos, mapa de calor, verificación visual de SSE en navegador, accesibilidad y pulido para proyector — **ahora a cargo de Rafael** (ver sección 4, roles actualizados más abajo).
-3. ML: F1 por debajo del objetivo del SDD #23 (0,746–0,755 vs. 0,90 requerido); Plan B activado (el motor de reglas decide, el ML es señal complementaria). No bloquea la demo.
-4. Documentación: capturas reales, reporte de métricas visible para el jurado, guion del pitch cronometrado — pendiente de José Estanga.
-5. Fase F6 (demo en vivo) y pitch — no iniciado.
+1. ML: F1 por debajo del objetivo del SDD #23 (0,746–0,755 vs. 0,90 requerido); Plan B activado (el motor de reglas decide, el ML es señal complementaria). No bloquea la demo.
+2. Documentación: capturas reales, reporte de métricas visible para el jurado, guion del pitch cronometrado — pendiente de José Estanga.
+3. Fase F6 (demo en vivo) y pitch — no iniciado.
+4. Frontend: accesibilidad más allá de lo ya verificado (lectores de pantalla reales, no solo Tab) y pulido fino para proyector — a cargo de Rafael (ver sección 4).
 
 ---
 
@@ -42,7 +41,7 @@
 - [x] **El entorno ya se corrió de punta a punta** (verificación del 2026-11-14): `docker compose up -d --build --wait` termina con código 0 y los 6 servicios en `healthy`. Evidencia y pendientes en la sección de Karla.
 - [x] **El dataset NSL-KDD ya está descargado en `ml/data/` y modelo entrenado.** Se descargaron `KDDTrain+.txt` y `KDDTest+.txt` y se ejecutó `ml/train.py`. Plan B activado tras evaluación de métricas.
 - [x] **`DEEPSEEK_API_KEY` configurado y probado contra la API real.** Ya no vive en `.env`: se pega en `secrets/deepseek_api_key.txt` (Docker secret, permisos 600, fuera de git). Triage verificado contra `https://api.deepseek.com` con respuesta `[llm]` en español claro y actualización de estado a `done`.
-- [ ] **Rama `motor` lista pero sin mergear.** Pusheada a `origin/motor` (`184dffd`), sin conflictos contra `develop` (ya resueltos localmente). Falta abrir/aprobar el PR en GitHub — bloquea que el catálogo de 20 reglas y los 43 tests de Iván lleguen a `develop`.
+- [x] **Rama `motor` mergeada.** El catálogo de 20 reglas, el normalizador endurecido y la suite ampliada de Iván ya están en `develop`/`main`.
 
 
 ---
@@ -127,14 +126,17 @@
 - [x] `frontend/src/pages/Soc.tsx` — 4 tarjetas KPI, tabla de eventos (componente `EventsTable`), conexión SSE en vivo, panel de IPs en cuarentena, botón de verificación de auditoría.
 - [x] `frontend/src/pages/Observatorio.tsx` — vista pública en `/publico`, 5 indicadores y listado de alertas en lenguaje claro.
 - [x] `frontend/src/components/KpiCard.tsx` y `EventsTable.tsx`.
+- [x] **`frontend/src/components/EventFilters.tsx`** — filtros de severidad, IP origen y rango de fechas conectados a `api.events()`; el SSE respeta el filtro activo al decidir si agrega un evento nuevo a la tabla.
+- [x] **`frontend/src/components/HeatmapCategorySeverity.tsx`** — mapa de calor categoría × severidad, acumulado en memoria desde el fetch inicial + los eventos bloqueados que van llegando por SSE (tope de 5.000 en el navegador, sin pedirle más de 1.000 de una vez a la API).
+- [x] **Verificado en navegador real con Playwright contra el stack vivo** (2026-11-14): SSE agrega filas sin recargar, filtros funcionan, heatmap se pinta con datos reales, auditoría confirma la cadena, Observatorio muestra 5 indicadores y alertas, Tab enfoca primero el skip-link, cero errores de consola.
+- [x] Accesibilidad mínima: skip-link ("Saltar al contenido principal"), foco visible (`focus-visible:ring`) en nav, botones y campos de filtro, `<caption>` oculto en la tabla de eventos para lectores de pantalla.
+- [x] Pulido visual: tipografía de las tarjetas KPI escala según el largo del valor (grande para números cortos, más chica para frases largas del Observatorio, para no desbordar el layout) — ver `KpiCard.tsx::valueSizeClass`.
+- [x] `VITE_API_BASE_URL` revisado: el frontend corre `vite --host` (modo dev, no build estático), así que la variable se lee en caliente al arrancar el contenedor, no queda "horneada" en el bundle — funciona igual en cualquier laptop que corra su propio `docker compose up` con su propio `.env`.
 
 **Pendiente (en orden):**
-1. [ ] **Filtros de la tabla de eventos:** `Soc.tsx` hoy solo pide `limit=50` a `/api/events`. Falta la UI de filtros por severidad, IP y rango de fechas que exige el contrato (`api.events({ severity, src_ip, since, until })` ya soporta esos parámetros en `lib/api.ts`, solo falta conectarlos a controles de formulario).
-2. [ ] **Mapa de calor categoría × severidad** (fase F3 de `docs/SPRINT-1.md`) — no existe todavía ningún componente para esto; es trabajo nuevo, no solo conectar una API existente.
-3. [ ] Probar la conexión SSE contra el backend real una vez levantado (`docker compose up`) — se escribió contra el contrato pero no se verificó en un navegador real todavía.
-4. [ ] Accesibilidad mínima (F4): contraste AA ya ayuda el tema oscuro de Tailwind configurado, pero falta revisar navegación por teclado (foco visible en el formulario de filtros, botón de "Verificar auditoría", enlaces del nav).
-5. [ ] Pulido visual para proyector (F5): tipografía más grande en las tarjetas KPI, confirmar que nada requiera zoom ni scroll horizontal en una pantalla de proyección.
-6. [ ] Revisar `VITE_API_BASE_URL` en `docker-compose.yml` (hoy apunta a `http://localhost:${API_PORT:-3000}`) — confirmar que funciona igual si la demo se corre en una laptop distinta a la que compiló la imagen.
+1. [ ] Accesibilidad con lector de pantalla real (NVDA/VoiceOver) — solo se verificó navegación por teclado (Tab), no una pasada completa con lector de pantalla.
+2. [ ] Pulido fino para proyector en sala real: confirmar tamaños de fuente y contraste con el proyector del venue, no solo en una pantalla de laptop.
+3. [ ] Decidir si el mapa de calor necesita alguna indicación visual de "recibiendo datos en vivo" (ej. parpadeo breve en la celda que acaba de incrementar) para el momento del pitch donde se lanza el simulador.
 
 ---
 
