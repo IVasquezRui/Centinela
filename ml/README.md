@@ -25,7 +25,9 @@ python train.py --train data/KDDTrain+.txt --test data/KDDTest+.txt --out model/
 
 Esto genera:
 
-- `model/nsl_kdd_rf.joblib` — el modelo entrenado (lo carga `engine/ml.py`).
+- `model/nsl_kdd_rf.joblib` — bundle con el modelo **y sus encoders** (el que
+  carga `engine/ml.py`; los encoders son necesarios para reproducir la
+  codificación de `protocol_type`/`service`/`flag` en inferencia).
 - `model/nsl_kdd_rf.metrics.json` — F1-score y tasa de falsos positivos,
   el reporte que exige el SDD #23 (criterio: F1 ≥ 0,90, FP ≤ 5%).
 

@@ -14,7 +14,7 @@ rules:
     severity: critica
     technique_id: T1190
     description: "Tautología clásica de SQL injection (' OR '1'='1)"
-    pattern: "(?i)('|%27)\\s*(or|and)\\s*('|%27)?\\s*1\\s*=\\s*1"
+    pattern: "(?i)('|%27)\\s*(or|and)\\s*('|%27)?\\s*1\\s*('|%27)?\\s*=\\s*('|%27)?\\s*1"
 
   - id: CNT-SQLI-002
     category: sqli
@@ -58,20 +58,10 @@ rules:
     description: "Esquema javascript: usado para ejecutar script desde un atributo"
     pattern: "(?i)javascript\\s*:"
 
-  - id: CNT-TRAVERSAL-001
-    category: traversal
-    severity: critica
-    technique_id: T1083
-    description: "Secuencia ../ para escapar del directorio base (path traversal / LFI)"
-    pattern: "(\\.\\./|\\.\\.%2f|%2e%2e/){2,}"
-
-  - id: CNT-TRAVERSAL-002
-    category: traversal
-    severity: alta
-    technique_id: T1083
-    description: "Lectura directa de archivos sensibles del sistema"
-    pattern: "(?i)(etc/passwd|boot\\.ini|win\\.ini|proc/self/environ)"
-
+  # RCE (cmdi) se evalúa ANTES que LFI (traversal): un payload como
+  # "; cat /etc/passwd" coincide con ambas y la categoría correcta es ejecución
+  # de comandos (T1059), no lectura de archivos. Ver
+  # tests/test_rules.py::test_command_injection_is_blocked.
   - id: CNT-CMDI-001
     category: cmdi
     severity: critica
@@ -85,6 +75,20 @@ rules:
     technique_id: T1059
     description: "Sustitución de comandos vía backticks o $()"
     pattern: "`[^`]+`|\\$\\([^)]+\\)"
+
+  - id: CNT-TRAVERSAL-001
+    category: traversal
+    severity: critica
+    technique_id: T1083
+    description: "Secuencia ../ para escapar del directorio base (path traversal / LFI)"
+    pattern: "(\\.\\./|\\.\\.%2f|%2e%2e/){2,}"
+
+  - id: CNT-TRAVERSAL-002
+    category: traversal
+    severity: alta
+    technique_id: T1083
+    description: "Lectura directa de archivos sensibles del sistema"
+    pattern: "(?i)(etc/passwd|boot\\.ini|win\\.ini|proc/self/environ)"
 
   - id: CNT-SCANNER-001
     category: scanner

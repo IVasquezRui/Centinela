@@ -23,30 +23,39 @@ from app.storage.models import Event
 logger = logging.getLogger("centinela.ai.worker")
 
 POLL_INTERVAL_SECONDS = 1.0
-BATCH_SIZE = 10
+BATCH_SIZE = 100
 
 
 async def run_worker(settings: Settings, stop_event: asyncio.Event) -> None:
     provider = build_provider(settings)
 
     while not stop_event.is_set():
+        processed = 0
         try:
-            await _process_pending_batch(provider)
+            processed = await _process_pending_batch(provider)
         except Exception:
             logger.exception("Error procesando el lote de triage de IA")
+
+        if processed >= BATCH_SIZE:
+            # Quedan eventos en cola: no se espera el intervalo de sondeo, para
+            # que el panel no tarde minutos en mostrar los análisis tras una
+            # ráfaga (1.000 eventos en la demo).
+            continue
+
         await asyncio.sleep(POLL_INTERVAL_SECONDS)
 
 
-async def _process_pending_batch(provider) -> None:
+async def _process_pending_batch(provider) -> int:
     async with async_session() as session:
         result = await session.scalars(
             select(Event)
             .where(Event.verdict == "block", Event.ai_status == "pending")
+            .order_by(Event.id)
             .limit(BATCH_SIZE)
         )
         pending_events = result.all()
         if not pending_events:
-            return
+            return 0
 
         for row in pending_events:
             event_dict = {
@@ -63,3 +72,4 @@ async def _process_pending_batch(provider) -> None:
             row.ai_status = "done"
 
         await session.commit()
+        return len(pending_events)
